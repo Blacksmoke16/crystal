@@ -55,11 +55,23 @@ module JSON
   #   getter a : Int32?
   # end
   # ```
+  # ```
+  # class House
+  #   include JSON::Serializable
+
+  #   @[JSON::Field(path: ["location", "coordinates", "position_x"])]
+  #   property x : Float64
+  # end
+  #
+  # house = House.from_json %({"location": {"coordinates": {"position_x": 12.3}}}) # => #<House:0x562434123fa0 @x=12.3>
+  # house.to_json # => {"x": 12.3}
+  # ```
   #
   # `JSON::Field` properties:
   # * **ignore**: if `true` skip this field in serialization and deserialization (by default false)
   # * **key**: the value of the key in the json object (by default the name of the instance variable)
   # * **root**: assume the value is inside a JSON object with a given key (see `Object.from_json(string_or_io, root)`)
+  # * **path**: extract a value in a nested JSON object; given an array of strings
   # * **converter**: specify an alternate type for parsing and generation. The converter must define `from_json(JSON::PullParser)` and `to_json(value, JSON::Builder)` as class methods. Examples of converters are `Time::Format` and `Time::EpochConverter` for `Time`.
   # * **presence**: if `true`, a `@{{key}}_present` instance variable will be generated when the key was present (even if it has a `null` value), `false` by default
   # * **emit_null**: if `true`, emits a `null` value for nilable property (by default nulls are not emitted)
@@ -148,6 +160,7 @@ module JSON
                 root:        ann && ann[:root],
                 converter:   ann && ann[:converter],
                 presence:    ann && ann[:presence],
+                path:        ann && ann[:path],
               }
             %}
           {% end %}
@@ -169,24 +182,30 @@ module JSON
           key = pull.read_object_key
           case key
           {% for name, value in properties %}
-            when {{value[:key]}}
+            when {{value[:key]}} {% if value[:path] && !value[:path].empty? %}, {{value[:path][0]}} {% end %}
               %found{name} = true
               begin
                 %var{name} =
                   {% if value[:nilable] || value[:has_default] %} pull.read_null_or { {% end %}
 
-                  {% if value[:root] %}
-                    pull.on_key!({{value[:root]}}) do
-                  {% end %}
-
-                  {% if value[:converter] %}
-                    {{value[:converter]}}.from_json(pull)
+                  {% if value[:path] && !value[:path].empty? %}
+                    {{value[:path].skip.map { |k, idx| %(pull.on_key! #{k} do) }.join(' ').id}}
+                      {% if value[:converter] %}{{value[:converter]}}.from_json(pull){% else %}::Union({{value[:type]}}).new(pull){% end %}
+                    {{value[:path].skip.map { |k| "end" }.join(' ').id}}
                   {% else %}
-                    ::Union({{value[:type]}}).new(pull)
-                  {% end %}
+                    {% if value[:root] %}
+                      pull.on_key!({{value[:root]}}) do
+                    {% end %}
 
-                  {% if value[:root] %}
-                    end
+                    {% if value[:converter] %}
+                      {{value[:converter]}}.from_json(pull)
+                    {% else %}
+                      ::Union({{value[:type]}}).new(pull)
+                    {% end %}
+
+                    {% if value[:root] %}
+                      end
+                    {% end %}
                   {% end %}
 
                 {% if value[:nilable] || value[:has_default] %} } {% end %}

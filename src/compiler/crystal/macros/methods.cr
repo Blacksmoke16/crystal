@@ -2220,6 +2220,8 @@ private def intepret_array_or_tuple_method(object, klass, method, args, block, i
     else
       object.wrong_number_of_arguments "#{klass}##{method}", args.size, 1
     end
+  when "skip"
+    klass.new(object.elements.skip(1))
   when "+"
     object.interpret_one_arg_method(method, args) do |arg|
       case arg

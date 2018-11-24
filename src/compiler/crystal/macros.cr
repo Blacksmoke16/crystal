@@ -639,6 +639,10 @@ module Crystal::Macros
     def unshift : ArrayLiteral
     end
 
+    # Similar to `Array#skip`.
+    def skip : ArrayLiteral
+    end
+
     # Similar to `Array#push`.
     def push(value : ASTNode) : ArrayLiteral
     end
