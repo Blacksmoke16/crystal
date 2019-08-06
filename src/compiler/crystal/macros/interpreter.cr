@@ -5,7 +5,7 @@ module Crystal
     property macro_expansion_pragmas : Hash(Int32, Array(Lexer::LocPragma))? = nil
 
     def self.new(program, scope : Type, path_lookup : Type, a_macro : Macro, call, a_def : Def? = nil, in_macro = false)
-      vars = {} of String => ASTNode
+      vars = Hash(String | Int32, ASTNode).new
       splat_index = a_macro.splat_index
       double_splat = a_macro.double_splat
 
@@ -76,13 +76,13 @@ module Crystal
 
     def initialize(@program : Program,
                    @scope : Type, @path_lookup : Type, @location : Location?,
-                   @vars = {} of String => ASTNode, @block : Block? = nil, @def : Def? = nil,
+                   @vars = Hash(String | Int32, ASTNode).new, @block : Block? = nil, @def : Def? = nil,
                    @in_macro = false)
       @str = IO::Memory.new(512) # Can't be String::Builder because of `{{debug}}`
       @last = Nop.new
     end
 
-    def define_var(name, value)
+    def define_var(name : String | Int32, value : ASTNode) : Nil
       @vars[name] = value
     end
 

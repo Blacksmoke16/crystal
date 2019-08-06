@@ -422,6 +422,10 @@ module Crystal::Macros
     def gsub(regex : RegexLiteral, replacement : StringLiteral) : StringLiteral
     end
 
+    # Returns a `StringLiteral` where all `:` are replaced with `_`.
+    def identify : StringLiteral
+    end
+
     # Similar to `String#includes?`.
     def includes?(search : StringLiteral | CharLiteral) : BoolLiteral
     end
