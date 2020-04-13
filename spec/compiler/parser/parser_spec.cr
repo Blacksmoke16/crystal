@@ -884,8 +884,25 @@ module Crystal
 
     it_parses "macro foo\neenum\nend", Macro.new("foo", body: Expressions.from(["eenum\n".macro_literal] of ASTNode))
 
+    it "parses macro def" do
+      parser = Parser.new %(macro def pluralize(str); str + "s"; end)
+      parser.filename = "/foo/bar/baz.cr"
+      node = parser.parse
+
+      node = node.should be_a Macro
+      node.is_macro_def?.should be_true
+    end
+
+    it "parses non macro def" do
+      parser = Parser.new %(macro pluralize(str); str; end)
+      parser.filename = "/foo/bar/baz.cr"
+      node = parser.parse
+
+      node = node.should be_a Macro
+      node.is_macro_def?.should be_false
+    end
+
     assert_syntax_error "macro foo; {% foo = 1 }; end"
-    assert_syntax_error "macro def foo : String; 1; end"
 
     it_parses "def foo;{{@type}};end", Def.new("foo", body: Expressions.from([MacroExpression.new("@type".instance_var)] of ASTNode), macro_def: true)
 

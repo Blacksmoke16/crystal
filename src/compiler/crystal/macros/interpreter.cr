@@ -378,6 +378,7 @@ module Crystal
           node.raise ex.message
         end
       else
+        return false if @last.is_a? Next
         # no receiver: special calls
         interpret_top_level_call node
       end
@@ -609,6 +610,11 @@ module Crystal
 
     def visit(node : OpAssign)
       @program.normalize(node).accept self
+      false
+    end
+
+    def visit(node : Next)
+      @last = node.clone_without_location
       false
     end
 

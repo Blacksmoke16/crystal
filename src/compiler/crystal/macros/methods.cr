@@ -50,7 +50,9 @@ module Crystal
       end
 
       matching_macro = owner.lookup_macro(name, args, named_args)
-      return unless matching_macro.is_a?(Macro)
+
+      # Only consider `macro def`s
+      return unless matching_macro.is_a?(Macro) && matching_macro.is_macro_def?
 
       interpreter = MacroInterpreter.new(
         @program,

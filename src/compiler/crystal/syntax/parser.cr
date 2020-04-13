@@ -2880,11 +2880,13 @@ module Crystal
     def parse_macro
       doc = @token.doc
 
-      # Force lexer return if possible a def or macro name
-      # cases like: def `, def /, def //
-      # that in regular statements states for delimiters
-      # here must be treated as method names.
-      name = consume_def_or_macro_name
+      # Manually set this here so that the next token is lexed correctly
+      # in macro def and non macro def contexts
+      @wants_def_or_macro_name = true
+      next_token_skip_space_or_newline
+      is_macro_def = @token.keyword? :def
+
+      name = consume_def_or_macro_name is_macro_def
 
       push_def
 
@@ -2966,7 +2968,7 @@ module Crystal
 
       pop_def
 
-      node = Macro.new name, args, body, block_arg, splat_index, double_splat: double_splat
+      node = Macro.new name, args, body, block_arg, splat_index, double_splat: double_splat, is_macro_def: is_macro_def
       node.name_location = name_location
       node.doc = doc
       node.end_location = end_location
@@ -5783,13 +5785,13 @@ module Crystal
     DefOrMacroCheck1 = [:IDENT, :CONST, :"`",
                         :"<<", :"<", :"<=", :"==", :"===", :"!=", :"=~", :"!~", :">>", :">", :">=", :"+", :"-", :"*", :"/", :"//", :"!", :"~", :"%", :"&", :"|", :"^", :"**", :"[]", :"[]?", :"[]=", :"<=>", :"&+", :"&-", :"&*", :"&**"]
 
-    def consume_def_or_macro_name
+    def consume_def_or_macro_name(advance_next_token : Bool = true)
       # Force lexer return if possible a def or macro name
       # cases like: def `, def /, def //
       # that in regular statements states for delimiters
       # here must be treated as method names.
       @wants_def_or_macro_name = true
-      next_token_skip_space_or_newline
+      next_token_skip_space_or_newline if advance_next_token
       check DefOrMacroCheck1
       @wants_def_or_macro_name = false
       @token.to_s

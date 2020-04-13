@@ -1019,7 +1019,14 @@ module Crystal
     property doc : String?
     property visibility = Visibility::Public
 
-    def initialize(@name, @args = [] of Arg, @body = Nop.new, @block_arg = nil, @splat_index = nil, @double_splat = nil)
+    # Returns `true` if `self` is a macro def.  I.e. a macro created with `macro def name`.
+    #
+    # Currently used to differentiate "normal" macros from those that return a `ASTNode`.
+    #
+    # See https://github.com/crystal-lang/crystal/issues/8835.
+    getter? is_macro_def : Bool
+
+    def initialize(@name, @args = [] of Arg, @body = Nop.new, @block_arg = nil, @splat_index = nil, @double_splat = nil, @is_macro_def : Bool = false)
     end
 
     def accept_children(visitor)
