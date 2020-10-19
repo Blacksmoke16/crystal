@@ -2,6 +2,8 @@ require "../semantic/ast"
 require "./macros"
 require "semantic_version"
 
+require "yaml"
+
 module Crystal
   class MacroInterpreter
     private def find_source_file(filename)
@@ -69,6 +71,10 @@ module Crystal
         interpret_read_file(node)
       when "read_file?"
         interpret_read_file(node, nilable: true)
+      when "read_yaml"
+        interpret_parse_file node, YAML
+      when "read_json"
+        interpret_parse_file node, JSON
       when "run"
         interpret_run(node)
       else
@@ -225,7 +231,43 @@ module Crystal
       macro_raise(node, node.args, self)
     end
 
+    def interpret_parse_file(node, type)
+      @last = self.parse_value(type.parse self.read_file(node).value)
+    end
+
+    private def parse_value(value : YAML::Any | JSON::Any)
+      self.parse_value value.raw
+    end
+
+    private def parse_value(value)
+      case value
+      in String     then StringLiteral.new value
+      in Array, Set then ArrayLiteral.map(value) { |v| self.parse_value v }
+      in Bool       then BoolLiteral.new value
+      in Nil, Slice then NilLiteral.new # Won't have YAML slices in this context
+      in Number     then NumberLiteral.new value
+      in Time       then StringLiteral.new value.to_rfc3339
+      in Hash
+        entries = [] of HashLiteral::Entry
+
+        value.each do |k, v|
+          entries << HashLiteral::Entry.new self.parse_value(k), self.parse_value(v)
+        end
+
+        HashLiteral.new entries
+      end
+    end
+
     def interpret_read_file(node, nilable = false)
+      begin
+        @last = self.read_file node
+      rescue ex
+        node.raise ex.to_s unless nilable
+        @last = NilLiteral.new
+      end
+    end
+
+    private def read_file(node) : StringLiteral
       unless node.args.size == 1
         node.wrong_number_of_arguments "macro call '#{node.name}'", node.args.size, 1
       end
@@ -233,12 +275,7 @@ module Crystal
       node.args[0].accept self
       filename = @last.to_macro_id
 
-      begin
-        @last = StringLiteral.new(File.read(filename))
-      rescue ex
-        node.raise ex.to_s unless nilable
-        @last = NilLiteral.new
-      end
+      StringLiteral.new(File.read(filename))
     end
 
     def interpret_run(node)
