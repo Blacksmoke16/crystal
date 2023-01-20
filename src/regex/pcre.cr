@@ -2,6 +2,8 @@ require "./lib_pcre"
 
 # :nodoc:
 module Regex::PCRE
+  @mark : UInt8* = Pointer(UInt8).null
+
   private def initialize(*, _source source, _options @options)
     # PCRE's pattern must have their null characters escaped
     source = source.gsub('\u{0}', "\\0")
@@ -16,6 +18,10 @@ module Regex::PCRE
       {% end %}
       raise ArgumentError.new("#{String.new(studyerrptr)}")
     end
+
+    @extra.value.flags = @extra.value.flags | LibPCRE::EXTRA_MARK
+    @extra.value.mark = pointerof(@mark)
+
     LibPCRE.full_info(@re, nil, LibPCRE::INFO_CAPTURECOUNT, out @captures)
   end
 
@@ -90,7 +96,7 @@ module Regex::PCRE
     ovector_size = (@captures + 1) * 3
     ovector = Pointer(Int32).malloc(ovector_size)
     if internal_matches?(str, byte_index, options, ovector, ovector_size)
-      Regex::MatchData.new(self, @re, str, byte_index, ovector, @captures)
+      Regex::MatchData.new(self, @re, str, byte_index, ovector, @captures, @mark.null? ? nil : String.new(@mark))
     end
   end
 
@@ -107,7 +113,7 @@ module Regex::PCRE
 
   module MatchData
     # :nodoc:
-    def initialize(@regex : ::Regex, @code : LibPCRE::Pcre, @string : String, @pos : Int32, @ovector : Int32*, @group_size : Int32)
+    def initialize(@regex : ::Regex, @code : LibPCRE::Pcre, @string : String, @pos : Int32, @ovector : Int32*, @group_size : Int32, @mark : String?)
     end
 
     private def byte_range(n, &)

@@ -2,6 +2,7 @@ require "./lib_pcre2"
 
 # :nodoc:
 module Regex::PCRE2
+  @mark : UInt8* = Pointer(UInt8).null
   @re : LibPCRE2::Code*
 
   # :nodoc:
@@ -121,8 +122,9 @@ module Regex::PCRE2
 
     ovector = LibPCRE2.get_ovector_pointer(match_data)
     ovector_count = LibPCRE2.get_ovector_count(match_data)
+    mark = LibPCRE2.get_mark(match_data)
 
-    ::Regex::MatchData.new(self, @re, str, byte_index, ovector, ovector_count.to_i32 - 1)
+    ::Regex::MatchData.new(self, @re, str, byte_index, ovector, ovector_count.to_i32 - 1, (mark ? String.new(mark) : nil))
   end
 
   private def matches_impl(str, byte_index, options)
@@ -176,7 +178,7 @@ module Regex::PCRE2
 
   module MatchData
     # :nodoc:
-    def initialize(@regex : Regex, @code : LibPCRE2::Code*, @string : String, @pos : Int32, @ovector : UInt64*, @group_size : Int32)
+    def initialize(@regex : Regex, @code : LibPCRE2::Code*, @string : String, @pos : Int32, @ovector : UInt64*, @group_size : Int32, @mark : String?)
     end
 
     private def byte_range(n, &)

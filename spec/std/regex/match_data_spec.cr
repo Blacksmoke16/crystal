@@ -19,6 +19,7 @@ describe "Regex::MatchData" do
     matchdata(/f(o)(x)/, "the fox").inspect.should eq(%(Regex::MatchData("fox" 1:"o" 2:"x")))
     matchdata(/f(o)(x)?/, "the fort").inspect.should eq(%(Regex::MatchData("fo" 1:"o" 2:nil)))
     matchdata(/fox/, "the fox").inspect.should eq(%(Regex::MatchData("fox")))
+    matchdata(/(X(*:A)Y)|X(*:B)Z/, "XY").inspect.should eq %(Regex::MatchData("XY" 1:"XY" MARK:"A"))
   end
 
   it "#to_s" do
@@ -27,10 +28,11 @@ describe "Regex::MatchData" do
     matchdata(/fox/, "the fox").to_s.should eq(%(Regex::MatchData("fox")))
   end
 
-  it "#pretty_print" do
-    matchdata(/f(o)(x)?/, "the fo").pretty_inspect.should eq(%(Regex::MatchData("fo" 1:"o" 2:nil)))
+  describe "#pretty_print" do
+    it "without a mark" do
+      matchdata(/f(o)(x)?/, "the fo").pretty_inspect.should eq(%(Regex::MatchData("fo" 1:"o" 2:nil)))
 
-    expected = <<-REGEX
+      expected = <<-REGEX
       Regex::MatchData("foooo"
        first:"f"
        second:"oooo"
@@ -39,7 +41,12 @@ describe "Regex::MatchData" do
        fifth:"o")
       REGEX
 
-    matchdata(/(?<first>f)(?<second>o(?<third>o(?<fourth>o(?<fifth>o))))/, "fooooo").pretty_inspect.should eq(expected)
+      matchdata(/(?<first>f)(?<second>o(?<third>o(?<fourth>o(?<fifth>o))))/, "fooooo").pretty_inspect.should eq(expected)
+    end
+
+    it "with mark" do
+      matchdata(/(X(*:A)Y)|X(*:B)Z/, "XY").pretty_inspect.should eq %(Regex::MatchData("XY" 1:"XY" MARK:"A"))
+    end
   end
 
   it "#size" do
@@ -393,6 +400,22 @@ describe "Regex::MatchData" do
     it "gets an array of unnamed captures with optional" do
       matchdata(/(Cr)(s)?/, "Crystal").captures.should eq(["Cr", nil])
       matchdata(/(Cr)(?<name1>s)?(tal)?/, "Crystal").captures.should eq(["Cr", nil])
+    end
+  end
+
+  describe "#mark" do
+    it "returns the mark if found and matched" do
+      /X(*:A)Y|X(*:B)Z/.match("XY").not_nil!.mark.should eq "A"
+    end
+
+    it "returns nil if the match does not have a mark" do
+      match = /X(*:A)Y|X(*:B)Z|YZ/.match("YZ").should_not be_nil
+      match.mark.should be_nil
+    end
+
+    it "returns nil if the regex does not have a mark" do
+      match = /YZ/.match("YZ").should_not be_nil
+      match.mark.should be_nil
     end
   end
 

@@ -41,6 +41,15 @@ class Regex
     # ```
     getter string : String
 
+    # Returns the name of the matched `(*MARK)` verb if any, otherwise `nil`.
+    #
+    # ```
+    # "XZ".match(/X(*:A)Y|X(*:B)Z/).not_nil!.mark # => B
+    # "XY".match(/X(*:A)Y|X(*:B)Z/).not_nil!.mark # => A
+    # "foo".match(/foo/).not_nil!.mark            # => nil
+    # ```
+    getter mark : String?
+
     # Returns the number of elements in this match object.
     #
     # ```
@@ -347,6 +356,12 @@ class Regex
         io << ' ' << name_table.fetch(i, i) << ':' if i > 0
         self[i]?.inspect(io)
       end
+
+      if mark = @mark
+        io << " MARK:"
+        mark.inspect io
+      end
+
       io << ')'
     end
 
@@ -367,6 +382,12 @@ class Regex
               end
             end
           end
+        end
+
+        if mark = @mark
+          pp.breakable
+          pp.text "MARK:"
+          mark.pretty_print pp
         end
       end
     end
