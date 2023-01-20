@@ -2,7 +2,6 @@ require "./lib_pcre2"
 
 # :nodoc:
 module Regex::PCRE2
-  @mark : UInt8* = Pointer(UInt8).null
   @re : LibPCRE2::Code*
 
   # :nodoc:
