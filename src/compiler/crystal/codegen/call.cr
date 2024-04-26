@@ -417,6 +417,16 @@ class Crystal::CodeGenVisitor
   end
 
   def codegen_call(node, target_def, self_type, call_args)
+    # func_call = @llvm_mod.globals[node.name]? || begin
+    #   c = @llvm_mod.globals.add(@program.string, node.name)
+    #   c.global_constant = true
+    #   c
+    # end
+
+    func_call = @builder.global_string_pointer(node.name).to_unsafe
+
+    LibIntrinsics.increment func_call.as(Void*), 1234_i64, 1, 1
+
     body = target_def.body
 
     # Try to inline the call

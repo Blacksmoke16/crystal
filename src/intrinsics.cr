@@ -1,6 +1,8 @@
 # Intrinsics as exported by LLVM.
 # Use `Intrinsics` to have a unified API across LLVM versions.
 lib LibIntrinsics
+  fun increment = "llvm.instrprof.increment"(name : Void*, hash : Int64, num_counters : Int32, index : Int32) : Void
+
   {% if flag?(:interpreted) %} @[Primitive(:interpreter_intrinsics_debugtrap)] {% end %}
   fun debugtrap = "llvm.debugtrap"
 

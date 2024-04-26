@@ -3,6 +3,7 @@
 class LLVM::PassBuilderOptions
   def initialize
     @options = LibLLVM.create_pass_builder_options
+    # @options.value.debug_logging = true
     @disposed = false
   end
 

@@ -675,50 +675,6 @@ module Crystal
     end
 
     {% if LibLLVM::IS_LT_130 %}
-      protected def optimize(llvm_mod)
-        fun_pass_manager = llvm_mod.new_function_pass_manager
-        pass_manager_builder.populate fun_pass_manager
-        fun_pass_manager.run llvm_mod
-        module_pass_manager.run llvm_mod
-      end
-
-      @module_pass_manager : LLVM::ModulePassManager?
-
-      private def module_pass_manager
-        @module_pass_manager ||= begin
-          mod_pass_manager = LLVM::ModulePassManager.new
-          pass_manager_builder.populate mod_pass_manager
-          mod_pass_manager
-        end
-      end
-
-      @pass_manager_builder : LLVM::PassManagerBuilder?
-
-      private def pass_manager_builder
-        @pass_manager_builder ||= begin
-          registry = LLVM::PassRegistry.instance
-          registry.initialize_all
-
-          builder = LLVM::PassManagerBuilder.new
-          case optimization_mode
-          in .o3?
-            builder.opt_level = 3
-            builder.use_inliner_with_threshold = 275
-          in .o2?
-            builder.opt_level = 2
-            builder.use_inliner_with_threshold = 275
-          in .o1?
-            builder.opt_level = 1
-            builder.use_inliner_with_threshold = 150
-          in .o0?
-            # default behaviour, no optimizations
-          end
-
-          builder.size_level = 0
-
-          builder
-        end
-      end
     {% else %}
       protected def optimize(llvm_mod)
         LLVM::PassBuilderOptions.new do |options|
@@ -728,7 +684,7 @@ module Crystal
                  in .o1? then "default<O1>"
                  in .o0? then "default<O0>"
                  end
-          LLVM.run_passes(llvm_mod, mode, target_machine, options)
+          LLVM.run_passes(llvm_mod, "instrprof,#{mode}", target_machine, options)
         end
       end
     {% end %}
@@ -879,8 +835,8 @@ module Crystal
           memory_buffer.dispose
         end
 
-        if must_compile
-          compiler.optimize llvm_mod unless compiler.optimization_mode.o0?
+        if true
+          compiler.optimize llvm_mod # unless compiler.optimization_mode.o0?
           compiler.target_machine.emit_obj_to_file llvm_mod, temporary_object_name
           File.rename(temporary_object_name, object_name)
         else
