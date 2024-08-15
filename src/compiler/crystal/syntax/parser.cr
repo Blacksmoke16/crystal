@@ -3805,12 +3805,10 @@ module Crystal
       double_splat : Bool
 
     def parse_param(params, extra_assigns, parentheses, found_default_value, found_splat, found_double_splat, allow_restrictions)
-      annotations = nil
-
       # Parse annotations first since they would be before any actual param tokens.
       # Do this in a loop to account for multiple annotations.
       while @token.type.op_at_lsquare?
-        (annotations ||= Array(Annotation).new) << parse_annotation
+        @parsed_annotations << parse_annotation
         skip_space_or_newline
       end
 
@@ -3823,7 +3821,7 @@ module Crystal
           warnings.add_warning_at @token.location, "space required before colon in type restriction (run `crystal tool format` to fix this)"
         end
 
-        block_param = parse_def_block_param(extra_assigns, annotations)
+        block_param = parse_def_block_param(extra_assigns)
         skip_space_or_newline
         # When block_param.name is empty, this is an anonymous parameter.
         # An anonymous parameter should not conflict other parameters names.
@@ -3953,14 +3951,16 @@ module Crystal
 
       raise "BUG: param_name is nil" unless param_name
 
-      param = Arg.new(param_name, default_value, restriction, external_name: external_name, parsed_annotations: annotations).at(param_location)
+      param = Arg.new(param_name, default_value, restriction, external_name: external_name, parsed_annotations: @parsed_annotations).at(param_location)
       params << param
       push_var param
 
       ArgExtras.new(nil, !!default_value, splat, !!double_splat)
+    ensure
+      @parsed_annotations.clear
     end
 
-    def parse_def_block_param(extra_assigns, annotations : Array(Annotation)?)
+    def parse_def_block_param(extra_assigns)
       name_location = @token.location
 
       if @token.type.op_rparen? || @token.type.newline? || @token.type.op_colon?
@@ -3981,13 +3981,15 @@ module Crystal
         type_spec = parse_bare_proc_type
       end
 
-      block_param = Arg.new(param_name, restriction: type_spec, parsed_annotations: annotations).at(name_location)
+      block_param = Arg.new(param_name, restriction: type_spec, parsed_annotations: @parsed_annotations).at(name_location)
 
       push_var block_param
 
       @block_arg_name = block_param.name
 
       block_param
+    ensure
+      @parsed_annotations.clear
     end
 
     def parse_param_name(location, extra_assigns, allow_external_name)

@@ -2040,7 +2040,7 @@ module Crystal
     property visibility = Visibility::Public
     property parsed_annotations : Array(Annotation)?
 
-    def initialize(@name, @members = [] of ASTNode, @base_type = nil)
+    def initialize(@name, @members = [] of ASTNode, @base_type = nil, @parsed_annotations : Array(Annotation)? = nil)
     end
 
     def accept_children(visitor)
@@ -2049,10 +2049,10 @@ module Crystal
     end
 
     def clone_without_location
-      EnumDef.new(@name, @members.clone, @base_type.clone)
+      EnumDef.new(@name, @members.clone, @base_type.clone, @parsed_annotations.clone)
     end
 
-    def_equals_and_hash @name, @members, @base_type
+    def_equals_and_hash @name, @members, @base_type, @parsed_annotations
   end
 
   class ExternalVar < ASTNode
