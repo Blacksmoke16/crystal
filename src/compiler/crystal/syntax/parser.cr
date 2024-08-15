@@ -19,6 +19,7 @@ module Crystal
     property type_nest : Int32
     getter? wants_doc : Bool
     @block_arg_name : String?
+    @parsed_annotations : Array(Annotation) = [] of Annotation
 
     def self.parse(str, string_pool : StringPool? = nil, var_scopes = [Set(String).new]) : ASTNode
       new(str, string_pool, var_scopes).parse
@@ -1002,7 +1003,7 @@ module Crystal
       when .op_minus_gt?
         parse_fun_literal
       when .op_at_lsquare?
-        parse_annotation
+        parse_annotation.tap { |ann| @parsed_annotations << ann }
       when .number?
         @wants_regex = false
         node_and_next_token NumberLiteral.new(@token.value.to_s, @token.number_kind)
@@ -1708,12 +1709,14 @@ module Crystal
 
       @type_nest -= 1
 
-      class_def = ClassDef.new name, body, superclass, type_vars, is_abstract, is_struct, splat_index
+      class_def = ClassDef.new name, body, superclass, type_vars, is_abstract, is_struct, splat_index, parsed_annotations: @parsed_annotations
       class_def.doc = doc
       class_def.name_location = name_location
       class_def.end_location = end_location
       set_visibility class_def
       class_def
+    ensure
+      @parsed_annotations.clear
     end
 
     def parse_type_vars
@@ -1782,12 +1785,14 @@ module Crystal
 
       @type_nest -= 1
 
-      module_def = ModuleDef.new name, body, type_vars, splat_index
+      module_def = ModuleDef.new name, body, type_vars, splat_index, parsed_annotations: @parsed_annotations
       module_def.doc = doc
       module_def.name_location = name_location
       module_def.end_location = end_location
       set_visibility module_def
       module_def
+    ensure
+      @parsed_annotations.clear
     end
 
     def parse_annotation_def
@@ -1804,11 +1809,13 @@ module Crystal
       check_ident :end
       next_token_skip_space
 
-      annotation_def = AnnotationDef.new name
+      annotation_def = AnnotationDef.new name, parsed_annotations: @parsed_annotations
       annotation_def.doc = doc
       annotation_def.name_location = name_location
       annotation_def.end_location = end_location
       annotation_def
+    ensure
+      @parsed_annotations.clear
     end
 
     def parse_parenthesized_expression
@@ -3185,12 +3192,14 @@ module Crystal
           body, end_location = parse_macro_body(name_location)
         end
 
-        node = Macro.new name, params, body, block_param, splat_index, double_splat: double_splat
+        node = Macro.new name, params, body, block_param, splat_index, double_splat: double_splat, parsed_annotations: @parsed_annotations
         node.name_location = name_location
         node.doc = doc
         node.end_location = end_location
         set_visibility node
         node
+      ensure
+        @parsed_annotations.clear
       end
     end
 
@@ -3740,11 +3749,13 @@ module Crystal
       @def_nest -= 1
       @doc_enabled = @wants_doc
 
-      node = Def.new name, params, body, receiver, block_param, return_type, @is_macro_def, @block_arity, is_abstract, splat_index, double_splat: double_splat, free_vars: free_vars
+      node = Def.new name, params, body, receiver, block_param, return_type, @is_macro_def, @block_arity, is_abstract, splat_index, double_splat: double_splat, free_vars: free_vars, parsed_annotations: @parsed_annotations
       node.name_location = name_location
       set_visibility node
       node.end_location = end_location
       node
+    ensure
+      @parsed_annotations.clear
     end
 
     def check_valid_def_name
@@ -5634,9 +5645,11 @@ module Crystal
       end_location = token_end_location
       next_token_skip_space
 
-      lib_def = LibDef.new(name, body).at(location).at_end(end_location)
+      lib_def = LibDef.new(name, body, parsed_annotations: @parsed_annotations).at(location).at_end(end_location)
       lib_def.name_location = name_location
       lib_def
+    ensure
+      @parsed_annotations.clear
     end
 
     def parse_lib_body
@@ -5662,7 +5675,7 @@ module Crystal
     def parse_lib_body_exp_without_location
       case @token.type
       when .op_at_lsquare?
-        parse_annotation
+        parse_annotation.tap { |ann| @parsed_annotations << ann }
       when .ident?
         case @token.value
         when Keyword::ALIAS
@@ -5832,10 +5845,12 @@ module Crystal
           body = nil
         end
 
-        fun_def = FunDef.new name, params, return_type, varargs, body, real_name
+        fun_def = FunDef.new name, params, return_type, varargs, body, real_name, parsed_annotations: @parsed_annotations
         fun_def.name_location = name_location
         fun_def.doc = doc
         fun_def.at(location).at_end(end_location)
+      ensure
+        @parsed_annotations.clear
       end
     end
 
@@ -5854,9 +5869,11 @@ module Crystal
       end_location = value.end_location
       skip_space
 
-      alias_node = Alias.new(name, value).at_end(end_location)
+      alias_node = Alias.new(name, value, parsed_annotations: @parsed_annotations).at_end(end_location)
       alias_node.doc = doc
       alias_node
+    ensure
+      @parsed_annotations.clear
     end
 
     def parse_pointerof
@@ -5973,7 +5990,9 @@ module Crystal
       end_location = token_end_location
       next_token_skip_space
 
-      CStructOrUnionDef.new(name, Expressions.from(body), union: union).at(location).at_end(end_location)
+      CStructOrUnionDef.new(name, Expressions.from(body), union: union, parsed_annotations: @parsed_annotations).at(location).at_end(end_location)
+    ensure
+      @parsed_annotations.clear
     end
 
     def parse_c_struct_or_union_body
@@ -6063,9 +6082,11 @@ module Crystal
       end_location = token_end_location
       next_token_skip_space
 
-      enum_def = EnumDef.new name, members, base_type
+      enum_def = EnumDef.new name, members, base_type, parsed_annotations: @parsed_annotations
       enum_def.doc = doc
       enum_def.at(location).at_end(end_location)
+    ensure
+      @parsed_annotations.clear
     end
 
     def parse_enum_body
@@ -6147,7 +6168,7 @@ module Crystal
         when .op_lcurly_percent?
           members << parse_percent_macro_control.at(location)
         when .op_at_lsquare?
-          members << parse_annotation
+          members << parse_annotation.tap { |ann| @parsed_annotations << ann }
         when .newline?, .op_semicolon?
           skip_statement_end
         else
