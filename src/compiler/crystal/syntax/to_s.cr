@@ -7,8 +7,8 @@ module Crystal
       to_s(io)
     end
 
-    def to_s(io : IO, macro_expansion_pragmas = nil, emit_doc = false) : Nil
-      visitor = ToSVisitor.new(io, macro_expansion_pragmas: macro_expansion_pragmas, emit_doc: emit_doc)
+    def to_s(io : IO, macro_expansion_pragmas = nil, emit_doc = false, emit_location_pragmas : Bool = false) : Nil
+      visitor = ToSVisitor.new(io, macro_expansion_pragmas: macro_expansion_pragmas, emit_doc: emit_doc, emit_location_pragmas: emit_location_pragmas)
       self.accept visitor
     end
   end
@@ -33,7 +33,7 @@ module Crystal
       BLOCK_ARG
     end
 
-    def initialize(@str = IO::Memory.new, @macro_expansion_pragmas = nil, @emit_doc = false)
+    def initialize(@str = IO::Memory.new, @macro_expansion_pragmas = nil, @emit_doc = false, @emit_location_pragmas : Bool = false)
       @indent = 0
       @inside_macro = 0
     end
@@ -202,11 +202,42 @@ module Crystal
 
     def visit(node : NamedTupleLiteral)
       @str << '{'
-      node.entries.join(@str, ", ") do |entry|
+
+      last_entry = node.entries.first
+      is_multiline = false
+
+      if (node_loc = node.location) && (entry_loc = last_entry.value.location) && entry_loc.line_number > node_loc.line_number
+        is_multiline = true
+        newline
+        @indent += 1
+        append_indent
+      end
+
+      node.entries.each_with_index do |entry, idx|
+        if (current_entry_loc = entry.value.location) && (last_entry_loc = last_entry.value.location) && current_entry_loc.line_number > last_entry_loc.line_number
+          newline
+          append_indent
+        elsif !idx.zero?
+          @str << ' '
+        end
+
         visit_named_arg_name(entry.key)
         @str << ": "
         entry.value.accept self
+
+        last_entry = entry
+
+        @str << ',' unless idx == node.entries.size - 1
       end
+
+      # If the opening brace has a newline after it, force the trailing brace to have one as well
+      if is_multiline
+        @str << ','
+        @indent -= 1
+        newline
+        append_indent
+      end
+
       @str << '}'
       false
     end
@@ -283,10 +314,18 @@ module Crystal
     end
 
     def visit_if_or_unless(prefix, node)
+      if @emit_location_pragmas && (loc = node.location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
       @str << prefix
       @str << ' '
       node.cond.accept self
       newline
+
+      if @emit_location_pragmas && (loc = node.then.location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
+
       accept_with_indent(node.then)
       unless node.else.nop?
         append_indent
@@ -296,6 +335,10 @@ module Crystal
       end
       append_indent
       @str << "end"
+
+      if @emit_location_pragmas && (loc = node.end_location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
       false
     end
 
@@ -743,6 +786,7 @@ module Crystal
           accept node.body
         end
       end
+      @indent -= 1
 
       # newline
       append_indent
@@ -1111,7 +1155,10 @@ module Crystal
     end
 
     def visit(node : Block)
-      @str << "do"
+      # If the node's body end location is on the same line as the start of the block itself, it's on a single line.
+      single_line_block = (node_loc = node.location) && (end_loc = node.body.end_location) && end_loc.line_number == node_loc.line_number
+
+      @str << (single_line_block ? '{' : "do")
 
       unless node.args.empty?
         @str << " |"
@@ -1131,11 +1178,21 @@ module Crystal
         @str << '|'
       end
 
-      newline
-      accept_with_indent(node.body)
+      @str << ' ' if single_line_block
 
+      if single_line_block
+        node.body.accept self
+      else
+        newline
+        accept_with_indent node.body
+      end
       append_indent
-      @str << "end"
+
+      if single_line_block
+        @str << ' ' << '}'
+      else
+        @str << "end"
+      end
 
       false
     end
