@@ -3389,6 +3389,7 @@ module Crystal
       when Keyword::UNLESS
         return parse_macro_if(start_location, macro_state, is_unless: true)
       when Keyword::BEGIN
+        location = @token.location
         next_token_skip_space
         check :OP_PERCENT_RCURLY
 
@@ -3400,7 +3401,7 @@ module Crystal
         next_token_skip_space
         check :OP_PERCENT_RCURLY
 
-        return MacroIf.new(BoolLiteral.new(true), body).at_end(token_end_location)
+        return MacroIf.new(BoolLiteral.new(true), body).at(location).at_end(token_end_location)
       when Keyword::ELSE, Keyword::ELSIF, Keyword::END
         return nil
       when Keyword::VERBATIM
@@ -3493,7 +3494,7 @@ module Crystal
       end
 
       a_then, a_else = a_else, a_then if is_unless
-      MacroIf.new(cond, a_then, a_else).at_end(token_end_location)
+      MacroIf.new(cond, a_then, a_else).at(location).at_end(token_end_location)
     end
 
     def parse_expression_inside_macro

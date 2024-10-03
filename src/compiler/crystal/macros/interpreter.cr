@@ -86,6 +86,40 @@ module Crystal
       @vars[name] = value
     end
 
+    def collect_covered_macro_nodes? : Bool
+      @program.collect_covered_macro_nodes?
+    end
+
+    def collect_covered_node(node : ASTNode, missed : Bool = false) : ASTNode
+      return node unless @program.collect_covered_macro_nodes?
+      return node unless location = node.location
+
+      # Workaround https://github.com/crystal-lang/crystal/issues/14880#issuecomment-2412480673
+      unless (filename = location.filename).is_a? String
+        f = filename.as VirtualFile
+
+        return node unless f.source.includes? "* 1"
+        return node unless macro_location = location.macro_location
+
+        node_line_number = location.line_number
+        source_lines = f.source.lines
+
+        # FIXME: Is there a better way to handle this?
+        # Need to determine if the macro expression is multi-line so we can calculate proper line number for the node in the source file.
+        is_multi_line = !source_lines[node_line_number - 1].ends_with?("%}") || source_lines[node_line_number - 2].ends_with? "%}"
+
+        location = Location.new(
+          macro_location.filename,
+          macro_location.line_number + location.line_number + (is_multi_line ? 1 : 0),
+          location.column_number
+        )
+      end
+
+      @program.covered_macro_nodes << {node, location, missed}
+
+      node
+    end
+
     def accept(node)
       node.accept self
       @last
@@ -97,6 +131,7 @@ module Crystal
     end
 
     def visit(node : MacroExpression)
+      self.collect_covered_node node.exp
       node.exp.accept self
 
       if node.output?
@@ -174,15 +209,26 @@ module Crystal
     end
 
     def visit(node : MacroIf)
+      self.collect_covered_node node
+
       node.cond.accept self
 
-      body = @last.truthy? ? node.then : node.else
+      body = if @last.truthy?
+               self.collect_covered_node(node.else, true)
+               node.then
+             else
+               self.collect_covered_node(node.then, true)
+               node.else
+             end
+
       body.accept self
 
       false
     end
 
     def visit(node : MacroFor)
+      self.collect_covered_node node.exp
+
       node.exp.accept self
 
       exp = @last
@@ -278,6 +324,8 @@ module Crystal
     end
 
     def visit(node : MacroVar)
+      self.collect_covered_node node
+
       if exps = node.exps
         exps = exps.map { |exp| accept exp }
       else
@@ -293,6 +341,8 @@ module Crystal
     end
 
     def visit(node : Assign)
+      self.collect_covered_node node
+
       case target = node.target
       when Var
         node.value.accept self
@@ -339,18 +389,44 @@ module Crystal
     end
 
     def visit(node : If)
+      self.collect_covered_node node
+
       node.cond.accept self
-      (@last.truthy? ? node.then : node.else).accept self
+
+      body = if @last.truthy?
+               self.collect_covered_node(node.else, true)
+               node.then
+             else
+               self.collect_covered_node(node.then, true)
+               node.else
+             end
+
+      body.accept self
+
       false
     end
 
     def visit(node : Unless)
+      self.collect_covered_node node
+
       node.cond.accept self
-      (@last.truthy? ? node.else : node.then).accept self
+
+      body = if @last.truthy?
+               self.collect_covered_node(node.then, true)
+               node.else
+             else
+               self.collect_covered_node(node.else, true)
+               node.then
+             end
+
+      body.accept self
+
       false
     end
 
     def visit(node : Call)
+      self.collect_covered_node node
+
       obj = node.obj
       if obj
         if obj.is_a?(Var) && (existing_var = @vars[obj.name]?)
@@ -584,6 +660,8 @@ module Crystal
     end
 
     def visit(node : Nop | NilLiteral | BoolLiteral | NumberLiteral | CharLiteral | StringLiteral | SymbolLiteral | RangeLiteral | RegexLiteral | MacroId | TypeNode | Def)
+      self.collect_covered_node node
+
       @last = node.clone_without_location
       false
     end
