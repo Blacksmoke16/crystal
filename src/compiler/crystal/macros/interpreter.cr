@@ -82,8 +82,35 @@ module Crystal
       @last = Nop.new
     end
 
+    def is_test_file?
+      @location.try &.original_filename.as?(String).try &.ends_with? "test.cr"
+    end
+
     def define_var(name : String, value : ASTNode) : Nil
       @vars[name] = value
+    end
+
+    def collect_covered_macro_nodes? : Bool
+      @program.collect_covered_macro_nodes?
+    end
+
+    def collect_covered_node(node : ASTNode, missed : Bool = false) : ASTNode
+      return node unless @program.collect_covered_macro_nodes?
+      return node unless location = node.location
+
+      unless (filename = location.filename).is_a? String
+        return node unless macro_location = location.macro_location
+
+        location = Location.new(
+          macro_location.filename,
+          location.line_number + macro_location.line_number,
+          location.column_number
+        )
+      end
+
+      @program.covered_macro_nodes << {node, location, missed}
+
+      node
     end
 
     def accept(node)
@@ -97,6 +124,7 @@ module Crystal
     end
 
     def visit(node : MacroExpression)
+      self.collect_covered_node node.exp
       node.exp.accept self
 
       if node.output?
@@ -109,7 +137,7 @@ module Crystal
           @str << " end" if is_yield
           (macro_expansion_pragmas[@str.pos.to_i32] ||= [] of Lexer::LocPragma) << Lexer::LocPopPragma.new
         else
-          @last.to_s(@str)
+          @last.to_s(@str, emit_location_pragmas: self.collect_covered_macro_nodes?)
         end
       end
 
@@ -125,15 +153,17 @@ module Crystal
       exp = node.exp
       if exp.is_a?(Expressions)
         exp.expressions.each do |subexp|
-          subexp.to_s(@str)
+          subexp.to_s(@str, emit_location_pragmas: self.collect_covered_macro_nodes?)
         end
       else
-        exp.to_s(@str)
+        exp.to_s(@str, emit_location_pragmas: self.collect_covered_macro_nodes?)
       end
       false
     end
 
     def visit(node : Var)
+      self.collect_covered_node node
+
       var = @vars[node.name]?
       if var
         @last = var
@@ -174,15 +204,38 @@ module Crystal
     end
 
     def visit(node : MacroIf)
+      self.collect_covered_node node
+
       node.cond.accept self
 
-      body = @last.truthy? ? node.then : node.else
+      body = if @last.truthy?
+               if node.is_unless?
+                 self.collect_covered_node node.then
+                 self.collect_covered_node node.else, true
+               else
+                 self.collect_covered_node node.else, true
+                 node.then
+               end
+               node.then
+             else
+               if node.is_unless?
+                 self.collect_covered_node node.else
+                 self.collect_covered_node node.then, true
+               else
+                 self.collect_covered_node node.then, true
+                 self.collect_covered_node node.else
+               end
+               node.else
+             end
+
       body.accept self
 
       false
     end
 
     def visit(node : MacroFor)
+      self.collect_covered_node node.exp
+
       node.exp.accept self
 
       exp = @last
@@ -278,6 +331,8 @@ module Crystal
     end
 
     def visit(node : MacroVar)
+      self.collect_covered_node node
+
       if exps = node.exps
         exps = exps.map { |exp| accept exp }
       else
@@ -293,6 +348,8 @@ module Crystal
     end
 
     def visit(node : Assign)
+      self.collect_covered_node node
+
       case target = node.target
       when Var
         node.value.accept self
@@ -339,18 +396,44 @@ module Crystal
     end
 
     def visit(node : If)
+      self.collect_covered_node node
+
       node.cond.accept self
-      (@last.truthy? ? node.then : node.else).accept self
+
+      body = if @last.truthy?
+               self.collect_covered_node(node.else, true)
+               node.then
+             else
+               self.collect_covered_node(node.then, true)
+               node.else
+             end
+
+      body.accept self
+
       false
     end
 
     def visit(node : Unless)
+      self.collect_covered_node node
+
       node.cond.accept self
-      (@last.truthy? ? node.else : node.then).accept self
+
+      body = if @last.truthy?
+               self.collect_covered_node(node.then, true)
+               node.else
+             else
+               self.collect_covered_node(node.else, true)
+               node.then
+             end
+
+      body.accept self
+
       false
     end
 
     def visit(node : Call)
+      self.collect_covered_node node
+
       obj = node.obj
       if obj
         if obj.is_a?(Var) && (existing_var = @vars[obj.name]?)
@@ -622,16 +705,22 @@ module Crystal
     end
 
     def visit(node : TupleLiteral)
+      self.collect_covered_node node
+
       @last = TupleLiteral.map(node.elements) { |element| accept element }
       false
     end
 
     def visit(node : ArrayLiteral)
+      self.collect_covered_node node
+
       @last = ArrayLiteral.map(node.elements) { |element| accept element }
       false
     end
 
     def visit(node : HashLiteral)
+      self.collect_covered_node node
+
       @last =
         HashLiteral.new(node.entries.map do |entry|
           HashLiteral::Entry.new(accept(entry.key), accept(entry.value))
@@ -640,6 +729,8 @@ module Crystal
     end
 
     def visit(node : NamedTupleLiteral)
+      self.collect_covered_node node
+
       @last =
         NamedTupleLiteral.new(node.entries.map do |entry|
           NamedTupleLiteral::Entry.new(entry.key, accept(entry.value))
@@ -648,6 +739,8 @@ module Crystal
     end
 
     def visit(node : Nop | NilLiteral | BoolLiteral | NumberLiteral | CharLiteral | StringLiteral | SymbolLiteral | RangeLiteral | RegexLiteral | MacroId | TypeNode | Def)
+      self.collect_covered_node node
+
       @last = node.clone_without_location
       false
     end

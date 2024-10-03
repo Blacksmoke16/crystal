@@ -7,8 +7,8 @@ module Crystal
       to_s(io)
     end
 
-    def to_s(io : IO, macro_expansion_pragmas = nil, emit_doc = false) : Nil
-      visitor = ToSVisitor.new(io, macro_expansion_pragmas: macro_expansion_pragmas, emit_doc: emit_doc)
+    def to_s(io : IO, macro_expansion_pragmas = nil, emit_doc = false, emit_location_pragmas : Bool = false) : Nil
+      visitor = ToSVisitor.new(io, macro_expansion_pragmas: macro_expansion_pragmas, emit_doc: emit_doc, emit_location_pragmas: emit_location_pragmas)
       self.accept visitor
     end
   end
@@ -32,7 +32,7 @@ module Crystal
       BLOCK_ARG
     end
 
-    def initialize(@str = IO::Memory.new, @macro_expansion_pragmas = nil, @emit_doc = false)
+    def initialize(@str = IO::Memory.new, @macro_expansion_pragmas = nil, @emit_doc = false, @emit_location_pragmas : Bool = false)
       @indent = 0
       @inside_macro = 0
     end
@@ -333,10 +333,18 @@ module Crystal
     end
 
     def visit_if_or_unless(prefix, node)
+      if @emit_location_pragmas && (loc = node.location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
       @str << prefix
       @str << ' '
       node.cond.accept self
       newline
+
+      if @emit_location_pragmas && (loc = node.then.location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
+
       accept_with_indent(node.then)
       unless node.else.nop?
         append_indent
@@ -346,6 +354,10 @@ module Crystal
       end
       append_indent
       @str << "end"
+
+      if @emit_location_pragmas && (loc = node.end_location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
       false
     end
 
@@ -793,6 +805,7 @@ module Crystal
           accept node.body
         end
       end
+      @indent -= 1
 
       # newline
       append_indent
