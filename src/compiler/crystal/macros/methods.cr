@@ -3236,6 +3236,11 @@ private def type_definition_generic_name(node, method, args, named_args, block)
 end
 
 private def macro_raise(node, args, interpreter, exception_type)
+  # Gracefully handle macro raises to capture coverage information, simulating what would happen if it was fully raised.
+  if interpreter.collect_covered_macro_nodes?
+    raise Crystal::SkipMacroException.new "", nil
+  end
+
   msg = args.map do |arg|
     arg.accept interpreter
     interpreter.last.to_macro_id
