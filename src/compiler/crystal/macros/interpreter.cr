@@ -177,6 +177,11 @@ module Crystal
       node.cond.accept self
 
       body = @last.truthy? ? node.then : node.else
+
+      if @program.macro_code_coverage_report_path
+        @program.covered_macro_nodes << body
+      end
+
       body.accept self
 
       false
