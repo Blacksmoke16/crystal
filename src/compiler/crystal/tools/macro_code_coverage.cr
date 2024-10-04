@@ -14,7 +14,7 @@ module Crystal
               next unless filename.starts_with? "/home/george/dev/git/athena-framework"
               builder.field filename do
                 builder.object do
-                  line_coverage.each do |line, count|
+                  line_coverage.to_a.sort_by! { |(line, count)| line }.each do |line, count|
                     builder.field line, count
                   end
                 end
@@ -23,16 +23,6 @@ module Crystal
           end
         end
       end
-    end
-
-    private def match_path?(path)
-      paths = ::Path[path].parents << ::Path[path]
-
-      !match_any_pattern?(CrystalPath.default_paths.map { |path| ::Path[path].expand.to_posix.to_s }, paths)
-    end
-
-    private def match_any_pattern?(patterns, paths)
-      patterns.any? { |pattern| paths.any? { |path| path == pattern || File.match?(pattern, path.to_posix) } }
     end
   end
 end

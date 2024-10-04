@@ -109,6 +109,7 @@ module Crystal
     end
 
     def visit(node : MacroExpression)
+      self.collect_covered_node node.exp
       node.exp.accept self
 
       if node.output?
@@ -190,8 +191,10 @@ module Crystal
 
       body = if @last.truthy?
                self.collect_covered_node node.then
-             else
+             elsif node.else.is_a?(MacroIf) # Else is a MacoIf when it's terminal. I.e. does not have any other elsifs
                self.collect_covered_node node.else, 0
+             else
+               self.collect_covered_node node.else
              end
 
       body.accept self
@@ -200,7 +203,7 @@ module Crystal
     end
 
     def visit(node : MacroFor)
-      self.collect_covered_node node
+      self.collect_covered_node node.exp
 
       node.exp.accept self
 
