@@ -204,6 +204,8 @@ module Crystal
     # Program that was created for the last compilation.
     property! program : Program
 
+    def initialize(@collect_covered_macro_nodes : Bool = false); end
+
     # Compiles the given *source*, with *output_filename* as the name
     # of the generated executable.
     #
@@ -223,42 +225,7 @@ module Crystal
       print_macro_run_stats(program)
       print_codegen_stats(units)
 
-      self.generate_macro_coverage_report program
-
       Result.new program, node
-    end
-
-    private def generate_macro_coverage_report(program : Program) : Nil
-      return unless output_directory = program.macro_code_coverage_report_path
-
-      # Build out an intermediary hash to determine the number of times each line was executed.
-      hits = Hash(String, Hash(Int32, Int32)).new(program.covered_macro_nodes.size) { |hash, key| hash[key] = Hash(Int32, Int32).new(0) }
-
-      program.covered_macro_nodes.each do |node|
-        next unless location = node.location
-        next unless (filename = location.filename).is_a? String
-
-        hits[filename][location.line_number] += 1
-      end
-
-      File.open "#{output_directory}/cov.json", "w" do |file|
-        JSON.build file do |builder|
-          builder.object do
-            builder.string "coverage"
-            builder.object do
-              hits.each do |filename, line_coverage|
-                builder.field filename do
-                  builder.object do
-                    line_coverage.each do |line, count|
-                      builder.field line, count
-                    end
-                  end
-                end
-              end
-            end
-          end
-        end
-      end
     end
 
     # Runs the semantic pass on the given source, without generating an
@@ -309,6 +276,7 @@ module Crystal
       program.show_error_trace = show_error_trace?
       program.progress_tracker = @progress_tracker
       program.warnings = @warnings
+      program.collect_covered_macro_nodes = @collect_covered_macro_nodes
       program
     end
 

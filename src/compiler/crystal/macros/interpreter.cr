@@ -86,6 +86,18 @@ module Crystal
       @vars[name] = value
     end
 
+    private def collect_covered_node(node : ASTNode, count : Int32 = 1) : ASTNode
+      return node unless @program.collect_covered_macro_nodes?
+      return node unless location = node.location
+
+      # TODO: How to handle VirtualFiles
+      return node unless (filename = location.filename).is_a? String
+
+      @program.covered_macro_nodes[filename][location.line_number] += count
+
+      node
+    end
+
     def accept(node)
       node.accept self
       @last
@@ -176,11 +188,11 @@ module Crystal
     def visit(node : MacroIf)
       node.cond.accept self
 
-      body = @last.truthy? ? node.then : node.else
-
-      if @program.macro_code_coverage_report_path
-        @program.covered_macro_nodes << body
-      end
+      body = if @last.truthy?
+               self.collect_covered_node node.then
+             else
+               self.collect_covered_node node.else, 0
+             end
 
       body.accept self
 
@@ -188,6 +200,8 @@ module Crystal
     end
 
     def visit(node : MacroFor)
+      self.collect_covered_node node
+
       node.exp.accept self
 
       exp = @last
@@ -283,6 +297,8 @@ module Crystal
     end
 
     def visit(node : MacroVar)
+      self.collect_covered_node node
+
       if exps = node.exps
         exps = exps.map { |exp| accept exp }
       else
@@ -298,6 +314,8 @@ module Crystal
     end
 
     def visit(node : Assign)
+      self.collect_covered_node node
+
       case target = node.target
       when Var
         node.value.accept self

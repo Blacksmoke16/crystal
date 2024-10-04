@@ -15,15 +15,8 @@ class Crystal::Program
   record CompiledMacroRun, filename : String, elapsed : Time::Span, reused : Bool
   property compiled_macros_cache = {} of String => CompiledMacroRun
 
-  getter macro_code_coverage_report_path : String? do
-    return unless output_directory = ENV["CRYSTAL_MACRO_CODE_COVERGE_REPORT_PATH"]?
-
-    raise "Expected the value of CRYSTAL_MACRO_CODE_COVERGE_REPORT_PATH to be a directory, not #{output_directory.inspect}." unless File.directory? output_directory
-
-    output_directory
-  end
-
-  getter covered_macro_nodes = Array(ASTNode).new
+  property? collect_covered_macro_nodes : Bool = false
+  getter covered_macro_nodes = Hash(String, Hash(Int32, Int32)).new { |hash, key| hash[key] = Hash(Int32, Int32).new(0) }
 
   def expand_macro(a_macro : Macro, call : Call, scope : Type, path_lookup : Type? = nil, a_def : Def? = nil)
     check_call_to_deprecated_macro a_macro, call
