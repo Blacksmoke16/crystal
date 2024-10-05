@@ -52,9 +52,7 @@ module Crystal
         end
       end
 
-      # Determines how many unique branches this If statement consist of.
-      #
-      # Assumes 0 if it's not a ternary
+      # Returns how many unique branches this If statement consist of, assuming `1` if it's not a ternary.
       #
       # ```
       # true ? 1 : 0             # => 2
@@ -87,16 +85,22 @@ module Crystal
       end
 
       private def increment_partial(location : Location, branches : Int32, count : Int32 = 1) : Nil
-        # If there is an existing partial value, update its hits
-        if existing_hits = @hits[location.filename][location.line_number]?
-          hits, _, total = existing_hits.as(String).partition '/'
+        existing_hits = @hits[location.filename][location.line_number]?
 
-          raise "BUG: Branch count mismatch" if total.to_i != branches
+        # If the existing hits value is:
+        # * String: Increment hits, up to *branches*
+        # * Int32: All branches were hit, so switched back to simpler total hit counter.
+        # * Nil: Newly found partial hit
+        @hits[location.filename][location.line_number] = case existing_hits
+                                                         in String
+                                                           hits, _, total = existing_hits.partition '/'
 
-          @hits[location.filename][location.line_number] = "#{hits.to_i + count}/#{branches}"
-        end
+                                                           raise "BUG: Branch count mismatch" if total.to_i != branches
 
-        @hits[location.filename][location.line_number] = "#{count}/#{branches}"
+                                                           hits.to_i == branches ? hits.to_i + count : "#{hits.to_i + count}/#{branches}"
+                                                         in Int32 then existing_hits += count
+                                                         in Nil   then "#{count}/#{branches}"
+                                                         end
       end
     end
   end

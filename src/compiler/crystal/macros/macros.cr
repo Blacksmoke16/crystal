@@ -16,7 +16,6 @@ class Crystal::Program
   property compiled_macros_cache = {} of String => CompiledMacroRun
 
   property? collect_covered_macro_nodes : Bool = false
-  # getter covered_macro_nodes = Hash(String, Hash(Int32, Int32)).new { |hash, key| hash[key] = Hash(Int32, Int32).new(0) }
   getter covered_macro_nodes = Array(ASTNode).new
 
   def expand_macro(a_macro : Macro, call : Call, scope : Type, path_lookup : Type? = nil, a_def : Def? = nil)

@@ -93,7 +93,6 @@ module Crystal
       # TODO: Do we need to handle VirtualFiles?
       return node unless (filename = location.filename).is_a? String
 
-      # @program.covered_macro_nodes[filename][location.line_number] += count
       @program.covered_macro_nodes << node
 
       node
