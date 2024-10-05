@@ -24,7 +24,7 @@ private def assert_coverage(code, expected_coverage, spec_file = __FILE__, spec_
 end
 
 describe "macro_code_coverage" do
-  assert_coverage <<-'CR', {2 => 1}
+  assert_coverage <<-'CR', {1 => 1}
     {{ "foo" }}
     CR
 

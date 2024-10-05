@@ -11,6 +11,8 @@ module Crystal
   end
 
   struct MacroCoverageProcessor
+    private CURRENT_DIR = Dir.current
+
     @hits = Hash(String, Hash(Int32, Int32 | String)).new { |hash, key| hash[key] = Hash(Int32, Int32 | String).new(0) }
 
     def process(result : Compiler::Result) : Nil
@@ -38,7 +40,10 @@ module Crystal
 
     def compute_coverage(result : Compiler::Result)
       result.program.covered_macro_nodes.each do |node|
-        self.visit node, node.location.not_nil!
+        location = node.location.not_nil!
+        filename = ::Path[location.filename.as(String)].relative_to(CURRENT_DIR).to_s
+
+        self.visit node, Location.new(filename, location.line_number, location.column_number)
       end
 
       @hits
@@ -59,7 +64,7 @@ module Crystal
       end
     end
 
-    # Returns how many unique branches this If statement consist of, assuming `1` if it's not a ternary.
+    # Returns how many unique branches this `If` statement consist of, assuming `1` if it's not a ternary.
     #
     # ```
     # true ? 1 : 0             # => 2
