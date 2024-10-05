@@ -1,26 +1,30 @@
 require "../../../spec_helper"
 include Crystal
 
-private def assert_coverage(code, expected_coverage, file = __FILE__, line = __LINE__)
-  it do
+private def assert_coverage(code, expected_coverage, spec_file = __FILE__, spec_line = __LINE__)
+  it file: spec_file, line: spec_line do
     compiler = Compiler.new true
     compiler.prelude = "empty"
     compiler.no_codegen = true
     result = compiler.compile(Compiler::Source.new(".", code), "fake-no-build")
 
     hits = MacroCoverageProcessor.new.compute_coverage(result)
-    hits = hits["."]?.should_not be_nil
+    unless hits = hits["."]?
+      fail "Failed to generate coverage", file: spec_file, line: spec_line
+    end
 
     hits.each do |line, count|
-      expected_hits = expected_coverage[line]?.should_not be_nil
+      unless expected_hits = expected_coverage[line]?
+        fail "Missing coverage data for line: #{line.inspect}", file: spec_file, line: spec_line
+      end
 
-      count.should eq expected_hits
+      count.should eq(expected_hits), file: spec_file, line: spec_line
     end
   end
 end
 
-describe "macro_code_coverage", focus: true do
-  assert_coverage <<-'CR', {1 => 1}
+describe "macro_code_coverage" do
+  assert_coverage <<-'CR', {2 => 1}
     {{ "foo" }}
     CR
 
