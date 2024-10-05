@@ -90,10 +90,11 @@ module Crystal
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
 
-      # TODO: How to handle VirtualFiles
+      # TODO: Do we need to handle VirtualFiles?
       return node unless (filename = location.filename).is_a? String
 
-      @program.covered_macro_nodes[filename][location.line_number] += count
+      # @program.covered_macro_nodes[filename][location.line_number] += count
+      @program.covered_macro_nodes << node
 
       node
     end
@@ -191,8 +192,6 @@ module Crystal
 
       body = if @last.truthy?
                self.collect_covered_node node.then
-             elsif node.else.is_a?(MacroIf) # Else is a MacoIf when it's terminal. I.e. does not have any other elsifs
-               self.collect_covered_node node.else, 0
              else
                self.collect_covered_node node.else
              end
