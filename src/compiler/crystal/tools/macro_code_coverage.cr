@@ -93,7 +93,13 @@ module Crystal
     end
 
     private def increment(location : Location, count : Int32 = 1) : Nil
-      @hits[location.filename][location.line_number] = @hits[location.filename][location.line_number].as(Int32) + count
+      case existing_hits = @hits[location.filename][location.line_number]
+      when String
+        # In this context if *existing_hits* is a string, it implies an `If` and other macro expressions on the same line.
+        # Handle this by essentially no-oping as it'll be a hit no matter what branch the `If` is hit.
+      when Int32
+        @hits[location.filename][location.line_number] = existing_hits + count
+      end
     end
 
     private def increment_partial(location : Location, branches : Int32, count : Int32 = 1) : Nil

@@ -1,8 +1,8 @@
 require "../../../spec_helper"
 include Crystal
 
-private def assert_coverage(code, expected_coverage, spec_file = __FILE__, spec_line = __LINE__)
-  it file: spec_file, line: spec_line do
+private def assert_coverage(code, expected_coverage, *, focus : Bool = false, spec_file = __FILE__, spec_line = __LINE__)
+  it file: spec_file, line: spec_line, focus: focus do
     compiler = Compiler.new true
     compiler.prelude = "empty"
     compiler.no_codegen = true
@@ -54,6 +54,16 @@ describe "macro_code_coverage" do
     test(2)
     test(3)
     CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => "1/2"}
+    {% begin %}
+      {{true ? 1 : 0}} + {{2}}
+    {% end %}
+    CR
+
+  # assert_coverage <<-'CR', {1 => "1/2"},
+  #   {% if true %}1{% else %}0{% end %}
+  #   CR
 
   assert_coverage <<-'CR', {2 => 4}
     macro test(x)
