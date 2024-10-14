@@ -127,6 +127,22 @@ describe "macro_code_coverage" do
     {% 3 %}
     CR
 
+  assert_coverage <<-'CR', {3 => 1, 4 => 1}
+    {% unless true %}
+      {{0}}
+    {% else %}
+      {{1}}
+    {% end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => 1}
+    {% unless false %}
+      {{0}}
+    {% else %}
+      {{1}}
+    {% end %}
+    CR
+
   assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 1, 4 => 1, 5 => 0, 7 => 2, 8 => 2}
     {% begin %}
       {% for v in {1, 2, 3} %}

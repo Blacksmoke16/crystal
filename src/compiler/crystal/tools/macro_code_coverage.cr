@@ -86,6 +86,7 @@ module Crystal
       then_depth + else_depth
     end
 
+    # Unless statements cannot be nested more than 1 level on a single line.
     private def condtional_statement_branches(node : Unless) : Int32
       1
     end
