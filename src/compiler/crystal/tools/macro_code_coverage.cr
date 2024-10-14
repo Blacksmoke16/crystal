@@ -39,11 +39,16 @@ module Crystal
     end
 
     def compute_coverage(result : Compiler::Result)
-      result.program.covered_macro_nodes.each do |node|
+      result.program.covered_macro_nodes.each do |(node, missed)|
         location = node.location.not_nil!
         filename = ::Path[location.filename.as(String)].relative_to(CURRENT_DIR).to_s
+        location = Location.new(filename, location.line_number, location.column_number)
 
-        self.visit node, Location.new(filename, location.line_number, location.column_number)
+        if missed
+          next self.increment location, 0
+        end
+
+        self.visit node, location
       end
 
       @hits

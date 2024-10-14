@@ -15,10 +15,12 @@ private def assert_coverage(code, expected_coverage, *, focus : Bool = false, sp
 
     hits.each do |line, count|
       unless expected_hits = expected_coverage[line]?
-        fail "Missing coverage data for line: #{line.inspect}", file: spec_file, line: spec_line
+        fail "Expected coverage data for line: #{line.inspect}", file: spec_file, line: spec_line
       end
 
-      count.should eq(expected_hits), file: spec_file, line: spec_line
+      if count != expected_hits
+        fail "Expected line #{line.inspect} to be #{expected_hits} but got #{count.inspect}", file: spec_file, line: spec_line
+      end
     end
   end
 end
@@ -127,7 +129,7 @@ describe "macro_code_coverage" do
     {% 3 %}
     CR
 
-  assert_coverage <<-'CR', {3 => 1, 4 => 1}
+  assert_coverage <<-'CR', {1 => 0, 3 => 1, 4 => 1}
     {% unless true %}
       {{0}}
     {% else %}
@@ -135,7 +137,7 @@ describe "macro_code_coverage" do
     {% end %}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 1}
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 0}
     {% unless false %}
       {{0}}
     {% else %}

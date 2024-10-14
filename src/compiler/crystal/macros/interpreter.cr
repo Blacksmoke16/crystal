@@ -90,14 +90,14 @@ module Crystal
       @program.collect_covered_macro_nodes?
     end
 
-    private def collect_covered_node(node : ASTNode, count : Int32 = 1) : ASTNode
+    private def collect_covered_node(node : ASTNode, missed : Bool = false) : ASTNode
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
 
       # TODO: Do we need to handle VirtualFiles?
       return node unless (filename = location.filename).is_a? String
 
-      @program.covered_macro_nodes << node
+      @program.covered_macro_nodes << {node, missed}
 
       node
     end
@@ -195,8 +195,10 @@ module Crystal
       node.cond.accept self
 
       body = if @last.truthy?
+               self.collect_covered_node node.else, true
                self.collect_covered_node node.then
              else
+               self.collect_covered_node node.then, true
                self.collect_covered_node node.else
              end
 

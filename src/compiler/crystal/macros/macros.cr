@@ -16,7 +16,7 @@ class Crystal::Program
   property compiled_macros_cache = {} of String => CompiledMacroRun
 
   property? collect_covered_macro_nodes : Bool = false
-  getter covered_macro_nodes = Array(ASTNode).new
+  getter covered_macro_nodes = Array({ASTNode, Bool}).new
 
   def expand_macro(a_macro : Macro, call : Call, scope : Type, path_lookup : Type? = nil, a_def : Def? = nil)
     check_call_to_deprecated_macro a_macro, call
