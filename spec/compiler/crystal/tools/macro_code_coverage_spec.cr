@@ -145,6 +145,32 @@ describe "macro_code_coverage" do
     {% end %}
     CR
 
+  assert_coverage <<-'CR', {2 => 2, 6 => 1, 10 => 1}
+    macro test(&)
+      {{yield}}
+    end
+
+    test do
+      {{2 + 1}}
+    end
+
+    test do
+      {{9 + 12}}
+    end
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 4 => 1}
+    macro test(&)
+      {{ 1 + 1 }}
+      {{yield if false}}
+      {{ 2 + 2 }}
+    end
+
+    test do
+      {{2 + 1}}
+    end
+    CR
+
   assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 1, 4 => 1, 5 => 0, 7 => 2, 8 => 2}
     {% begin %}
       {% for v in {1, 2, 3} %}
