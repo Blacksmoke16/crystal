@@ -55,37 +55,39 @@ module Crystal
       self.increment location, 0
     end
 
-    def visit(node : If, location : Location) : Nil
+    def visit(node : If | Unless, location : Location) : Nil
       # If there are more than 1 branch, we need to increment a partial hit
-      if (branches = self.if_statement_branches(node)) > 1
+      if (branches = self.condtional_statement_branches(node)) > 1
         self.increment_partial location, branches
-      else
-        self.increment location
       end
     end
 
-    # Returns how many unique branches this `If` statement consist of, assuming `1` if it's not a ternary.
+    # Returns how many unique branches this `If` statement consist of on a single line, assuming `1` if it's not a ternary.
     #
     # ```
     # true ? 1 : 0             # => 2
     # true ? 1 : false ? 2 : 3 # => 3
     # ```
-    private def if_statement_branches(node : If) : Int32
+    private def condtional_statement_branches(node : If) : Int32
       return 1 unless node.ternary?
 
       then_depth = case n = node.then
-                   when If then self.if_statement_branches n
+                   when If then self.condtional_statement_branches n
                    else
                      1
                    end
 
       else_depth = case n = node.else
-                   when If then self.if_statement_branches n
+                   when If then self.condtional_statement_branches n
                    else
                      1
                    end
 
       then_depth + else_depth
+    end
+
+    private def condtional_statement_branches(node : Unless) : Int32
+      1
     end
 
     def visit(node : ASTNode, location : Location) : Nil

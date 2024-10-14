@@ -114,6 +114,7 @@ module Crystal
 
     def visit(node : MacroExpression)
       self.collect_covered_node node.exp
+
       node.exp.accept self
 
       if node.output?
