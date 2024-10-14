@@ -86,6 +86,10 @@ module Crystal
       @vars[name] = value
     end
 
+    def collect_covered_macro_nodes? : Bool
+      @program.collect_covered_macro_nodes?
+    end
+
     private def collect_covered_node(node : ASTNode, count : Int32 = 1) : ASTNode
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location

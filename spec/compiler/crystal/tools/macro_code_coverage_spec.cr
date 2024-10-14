@@ -29,6 +29,10 @@ describe "macro_code_coverage" do
     CR
 
   assert_coverage <<-'CR', {1 => "1/2"}
+    {{ true ? raise("err") : 0 }}
+    CR
+
+  assert_coverage <<-'CR', {1 => "1/2"}
     {{ true ? 1 : 0 }}
     CR
 
@@ -67,13 +71,36 @@ describe "macro_code_coverage" do
 
   assert_coverage <<-'CR', {2 => 4}
     macro test(x)
-    {{ x == 1 ? 1 : x == 2 ? 2 : 3 }}
+      {{ x == 1 ? 1 : x == 2 ? 2 : 3 }}
     end
 
     test(1)
     test(2)
     test(3)
     test(4)
+    CR
+
+  assert_coverage <<-'CR', {2 => "2/2"}
+    macro test(x)
+      {{ 1 == x ? raise("err") : 0 }}
+    end
+
+    test(2)
+    test(1)
+    CR
+
+  assert_coverage <<-'CR', {2 => "1/2"}
+    macro test(x)
+      {{ 1 == x ? raise("err") : 0 }}
+    end
+
+    test(1)
+    test(2)
+    CR
+
+  assert_coverage <<-'CR', {1 => 1}
+    {% raise "foo" %}
+    {{ 2 }}
     CR
 
   assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 1, 4 => 1, 5 => 0, 7 => 2, 8 => 2}
