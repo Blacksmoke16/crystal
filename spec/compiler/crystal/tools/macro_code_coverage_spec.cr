@@ -184,4 +184,28 @@ describe "macro_code_coverage" do
       {% end %}
     {% end %}
     CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 4 => 2, 5 => 2, 7 => 2}
+    {% begin %}
+      {% for v in [1, 2] %}
+        {%
+          pp(10 * 10)
+          20 * 20
+        %}
+        {% 30 * 30 %}
+      {% end %}
+    {% end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 4 => 0, 5 => 2, 7 => 2}
+    {% begin %}
+      {% for v in [1, 2] %}
+        {%
+          pp(10 * 10) if false
+          20 * 20
+        %}
+        {% 30 * 30 %}
+      {% end %}
+    {% end %}
+    CR
 end

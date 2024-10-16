@@ -4,9 +4,16 @@ require "../compiler"
 module Crystal
   class Command
     private def macro_code_coverage
-      config, result = compile_no_codegen "tool macro_code_coverage", macro_code_coverage: true
+      config, result = compile_no_codegen "tool macro_code_coverage", path_filter: true, macro_code_coverage: true
 
-      MacroCoverageProcessor.new.process result
+      coverage_processor = MacroCoverageProcessor.new
+
+      coverage_processor.includes.concat config.includes.map { |path| ::Path[path].expand.to_posix.to_s }
+
+      coverage_processor.excludes.concat CrystalPath.default_paths.map { |path| ::Path[path].expand.to_posix.to_s }
+      coverage_processor.excludes.concat config.excludes.map { |path| ::Path[path].expand.to_posix.to_s }
+
+      coverage_processor.process result
     end
   end
 
@@ -14,6 +21,9 @@ module Crystal
     private CURRENT_DIR = Dir.current
 
     @hits = Hash(String, Hash(Int32, Int32 | String)).new { |hash, key| hash[key] = Hash(Int32, Int32 | String).new(0) }
+
+    property includes = [] of String
+    property excludes = [] of String
 
     def process(result : Compiler::Result) : Nil
       @hits.clear
@@ -39,17 +49,32 @@ module Crystal
     end
 
     def compute_coverage(result : Compiler::Result)
-      result.program.covered_macro_nodes.each do |(node, missed)|
-        location = node.location.not_nil!
-        filename = ::Path[location.filename.as(String)].relative_to(CURRENT_DIR).to_s
-        location = Location.new(filename, location.line_number, location.column_number)
+      # In order to obtain proper hit counts for multi-line MacroExpression we need to get a bit creative.
+      #
+      # If we just collect the MacroExpression node itself, it would only mark the first line of the expression as hit, which would not be true if it were a multi-line expression with bunch of other logic within it.
+      # However, if we collect every Call, it would produce incorrect hits, e.g. `pp 10 * 10` would be 2 calls even tho the line executes once.
+      #
+      # To solve this, we'll normalize the covered nodes by:
+      # 1. First, filter the nodes them down to only the ones we care about given the desired path filters
+      # 2. Chunk the nodes by their line number.
+      #    This should be fine as long as we can assume there will be another node on a different line in-between multiple iterations/invocations of the macro.
+      # 3. Iterate over the chunks themselves, using the first missed node, falling back on the first node as the node to process/whose location to use.
+      #    Missed nodes take priority since if any node was missed, that means the whole line was missed and should be reported as such.
+      #    It shouldn't matter what node we ultimately pick since all nodes are on the same line and that's the level of granularity we're operating on.
+      normalized_nodes = result.program.covered_macro_nodes
+        .each
+        .select { |(_, location, _)| match_path? location.filename.as(String) }
+        .chunk { |(_, location, _)| location.line_number }
+        .each do |(line_number, nodes)|
+          node, location, missed = nodes.find(nodes.first) { |(_, _, missed)| missed }
 
-        if missed
-          next self.increment location, 0
+          filename = ::Path[location.filename.as(String)].relative_to(CURRENT_DIR).to_s
+          location = Location.new(filename, line_number, location.column_number)
+
+          next self.increment location, 0 if missed
+
+          self.visit node, location
         end
-
-        self.visit node, location
-      end
 
       @hits
     end
@@ -125,6 +150,16 @@ module Crystal
                                                        in Int32 then existing_hits += count
                                                        in Nil   then "#{count}/#{branches}"
                                                        end
+    end
+
+    def match_path?(path)
+      paths = ::Path[path].parents << ::Path[path]
+
+      match_any_pattern?(includes, paths) || !match_any_pattern?(excludes, paths)
+    end
+
+    private def match_any_pattern?(patterns, paths)
+      patterns.any? { |pattern| paths.any? { |path| path == pattern || File.match?(pattern, path.to_posix) } }
     end
   end
 end
