@@ -64,75 +64,98 @@ module Crystal
       #    It shouldn't matter what node we ultimately pick since all nodes are on the same line and that's the level of granularity we're operating on.
       normalized_nodes = result.program.covered_macro_nodes
         .each
-        .select { |(node, location, missed)| match_path? location.filename.as(String) }
+        .select { |(n, l, m)| match_path?(l.filename.as(String)) }
+        .map { |(n, l, m)| {n, self.normalize_location(l), m} }
         .chunk(true, &.itself)
         .map(&.first)
-        .chunk(true) { |(_, location, _)| location.line_number }
-        .each do |(line_number, nodes)|
-          pp!({line_number})
+
+      normalized_nodes
+        .slice_before(normalized_nodes.first)
+        .each do |nodes|
+          origin_location = nodes[0][1]
+
+          pp!(origin_location)
 
           nodes.each do |(node, location, missed)|
-            pp!({node.class, location, missed})
+            p!({node.to_s.gsub("\n", ""), node.class, location, missed})
           end
 
           puts ""
           puts ""
 
-          if nodes.none? { |_, _, missed| missed }
-            node, location, _ = nodes.first
-
-            location = self.normalize_location(line_number, location)
-
-            self.visit node, location
-
-            next
-          end
-
-          # If a line doesn't have any conditionals in it, and one of the nodes on that line was missed, mark the whole line as missed
-          if !nodes.first.first.is_a?(If | MacroIf | Unless) && (node = nodes.find { |(_, _, missed)| missed })
-            next self.increment self.normalize_location(line_number, node[1]), 0
-          end
-
-          nodes.each do |(node, location, missed)|
-            location = self.normalize_location(line_number, location)
-
-            next self.increment location, 0, true if missed
-
-            self.visit node, location
-          end
-
-          # node, location, missed = nodes.find(nodes.first) { |(_, _, missed)| missed }
-
-          # filename = ::Path[location.filename.as(String)].relative_to(CURRENT_DIR).to_s
-          # location = Location.new(filename, line_number, location.column_number)
-
-          # next self.increment location, 0 if missed
-
-          # self.visit node, location
+          # nodes.each do |(node, location, missed)|
+          #   self.visit node, location
+          # end
         end
 
       @hits
     end
 
-    private def normalize_location(line_number : Int32, location : Location) : Location
+    private def normalize_location(location : Location) : Location
       Location.new(
         ::Path[location.filename.as(String)].relative_to(CURRENT_DIR).to_s,
-        line_number,
+        location.line_number,
         location.column_number
       )
     end
 
-    # def visit(node : MacroIf, location : Location) : Nil
-    #   self.increment location, 0
-    # end
-
     def visit(node : If | Unless, location : Location) : Nil
       # If there are more than 1 branch, we need to increment a partial hit
-      if (branches = self.condtional_statement_branches(node)) > 1
-        self.increment_partial location, branches
-        # else
-        #   self.increment location
+      if (branches = pp!(self.condtional_statement_branches(node))) > 1
+        self.set_or_increment location, branches
       end
+    end
+
+    def visit(node : ASTNode, location : Location) : Nil
+      self.increment location
+    end
+
+    private def increment(location : Location, count : Int32 = 1, override : Bool = false) : Nil
+      @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
+                                                       in String
+                                                         hits, _, total = existing_hits.partition '/'
+
+                                                         hits.to_i == total ? hits.to_i + count : "#{hits.to_i + count}/#{total}"
+                                                       in Int32 then existing_hits += count
+                                                       in Nil
+                                                         count
+                                                       end
+
+      # case existing_hits = @hits[location.filename][location.line_number]
+      # when String
+      #   # In this context if *existing_hits* is a string, it implies an `If` and other macro expressions on the same line.
+      #   # Handle this by essentially no-oping as it'll be a hit no matter what branch the `If` is hit.
+      # when Int32
+      #   @hits[location.filename][location.line_number] = override ? count : existing_hits + count
+      # end
+    end
+
+    # private def increment_partial(location : Location, branches : Int32, count : Int32 = 1) : Nil
+
+    #   @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
+    #                                                    in String
+    #                                                      hits, _, total = existing_hits.partition '/'
+
+    #                                                      hits.to_i == total ? hits.to_i + count : "#{hits.to_i + count}/#{total}"
+    #                                                    in Int32 then existing_hits += count
+    #                                                    in Nil   then "#{count}/#{branches}"
+    #                                                    end
+    # end
+
+    private def set_or_increment(location : Location, branches : Int32, count : Int32 = 1)
+      # If the existing hits value is:
+      # * String: Increment hits, up to *branches*
+      # * Int32: All branches were hit, so switched back to simpler total hit counter.
+      # * Nil: Newly found partial hit
+      @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
+                                                       in String
+                                                         hits, _, total = existing_hits.partition '/'
+
+                                                         hits.to_i == total ? hits.to_i + count : "#{hits.to_i + count}/#{total}"
+                                                       in Int32 then existing_hits += count
+                                                       in Nil
+                                                         "#{count}/#{branches}"
+                                                       end
     end
 
     # Returns how many unique branches this `If` statement consist of on a single line, assuming `1` if it's not a ternary.
@@ -164,38 +187,7 @@ module Crystal
       1
     end
 
-    def visit(node : ASTNode, location : Location) : Nil
-      self.increment location
-    end
-
-    private def increment(location : Location, count : Int32 = 1, override : Bool = false) : Nil
-      case existing_hits = @hits[location.filename][location.line_number]
-      when String
-        # In this context if *existing_hits* is a string, it implies an `If` and other macro expressions on the same line.
-        # Handle this by essentially no-oping as it'll be a hit no matter what branch the `If` is hit.
-      when Int32
-        @hits[location.filename][location.line_number] = override ? count : existing_hits + count
-      end
-    end
-
-    private def increment_partial(location : Location, branches : Int32, count : Int32 = 1) : Nil
-      # If the existing hits value is:
-      # * String: Increment hits, up to *branches*
-      # * Int32: All branches were hit, so switched back to simpler total hit counter.
-      # * Nil: Newly found partial hit
-      @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
-                                                       in String
-                                                         hits, _, total = existing_hits.partition '/'
-
-                                                         # raise "BUG: Branch count mismatch" if total.to_i != branches
-
-                                                         hits.to_i == branches ? hits.to_i + count : "#{hits.to_i + count}/#{branches}"
-                                                       in Int32 then existing_hits += count
-                                                       in Nil   then "#{count}/#{branches}"
-                                                       end
-    end
-
-    def match_path?(path)
+    private def match_path?(path)
       paths = ::Path[path].parents << ::Path[path]
 
       match_any_pattern?(includes, paths) || !match_any_pattern?(excludes, paths)

@@ -227,7 +227,7 @@ module Crystal
 
       body = if @last.truthy?
                self.collect_covered_node node.else, true
-               node.then
+               self.collect_covered_node node.then
              else
                self.collect_covered_node node.then, true
                self.collect_covered_node node.else
@@ -406,11 +406,13 @@ module Crystal
       node.cond.accept self
 
       body = if @last.truthy?
-               self.collect_covered_node node.else, true
-               self.collect_covered_node node.then
+               self.collect_covered_node(node.then).tap do
+                 self.collect_covered_node node.else, true
+               end
              else
-               self.collect_covered_node node.then, true
-               self.collect_covered_node node.else
+               self.collect_covered_node(node.else).tap do
+                 self.collect_covered_node node.then, true
+               end
              end
 
       body.accept self
