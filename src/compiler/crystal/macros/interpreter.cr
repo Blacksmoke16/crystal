@@ -143,6 +143,7 @@ module Crystal
     end
 
     def visit(node : MacroExpression)
+      self.collect_covered_node node.exp
       node.exp.accept self
 
       if node.output?
@@ -220,11 +221,13 @@ module Crystal
     end
 
     def visit(node : MacroIf)
+      # self.collect_covered_node node
+
       node.cond.accept self
 
       body = if @last.truthy?
                self.collect_covered_node node.else, true
-               self.collect_covered_node node.then
+               node.then
              else
                self.collect_covered_node node.then, true
                self.collect_covered_node node.else
@@ -398,6 +401,8 @@ module Crystal
     end
 
     def visit(node : If)
+      self.collect_covered_node node
+
       node.cond.accept self
 
       body = if @last.truthy?
@@ -414,6 +419,8 @@ module Crystal
     end
 
     def visit(node : Unless)
+      self.collect_covered_node node
+
       node.cond.accept self
 
       body = if @last.truthy?
@@ -665,7 +672,7 @@ module Crystal
     end
 
     def visit(node : Nop | NilLiteral | BoolLiteral | NumberLiteral | CharLiteral | StringLiteral | SymbolLiteral | RangeLiteral | RegexLiteral | MacroId | TypeNode | Def)
-      self.collect_covered_node node
+      # self.collect_covered_node node
 
       @last = node.clone_without_location
       false

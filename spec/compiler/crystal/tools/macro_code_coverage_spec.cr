@@ -8,7 +8,12 @@ private def assert_coverage(code, expected_coverage, *, focus : Bool = false, sp
     compiler.no_codegen = true
     result = compiler.compile(Compiler::Source.new(".", code), "fake-no-build")
 
-    hits = MacroCoverageProcessor.new.compute_coverage(result)
+    begin
+      hits = MacroCoverageProcessor.new.compute_coverage(result)
+    rescue ex
+      fail ex.message, file: spec_file, line: spec_line
+    end
+
     unless hits = hits["."]?
       fail "Failed to generate coverage", file: spec_file, line: spec_line
     end
@@ -105,7 +110,7 @@ describe "macro_code_coverage" do
     {{ 2 }}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 3 => 1}
+  assert_coverage <<-'CR', {1 => 1, 2 => 0, 3 => 1}
     {% 1 %}
     {% 2 if false %}
     {% 3 %}
@@ -117,7 +122,7 @@ describe "macro_code_coverage" do
     {% 3 %}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 3 => 1}
+  assert_coverage <<-'CR', {1 => 1, 2 => 0, 3 => 1}
     {% 1 %}
     {% 2 unless true %}
     {% 3 %}
@@ -159,7 +164,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  assert_coverage <<-'CR', {2 => 1, 4 => 1}
+  assert_coverage <<-'CR', {2 => 1, 3 => 0, 4 => 1}
     macro test(&)
       {{ 1 + 1 }}
       {{yield if false}}
