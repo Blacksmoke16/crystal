@@ -77,7 +77,7 @@ module Crystal
           pp!(origin_location)
 
           nodes.each do |(node, location, missed)|
-            p!({node.to_s.gsub("\n", ""), node.class, location, missed})
+            p({node.to_s.gsub("\n", ""), node.class, location, missed})
           end
 
           puts ""
