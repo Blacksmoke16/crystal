@@ -2696,6 +2696,63 @@ module Crystal
         location.line_number.should eq 10
       end
 
+      describe "locations of MacroExpression within MacroIf" do
+        it do
+          parser = Parser.new(<<-CR)
+            {% if true %}
+              {%
+                "foo"
+                "bar"
+              %}
+            {% else %}
+              {{ "biz" }}
+            {% end %}
+          CR
+
+          node = parser.parse.should be_a MacroIf
+          then_node = node.then.should(be_a(Expressions)).expressions[1].should be_a MacroExpression
+          else_node = node.else.should(be_a(Expressions)).expressions[1].should be_a MacroExpression
+
+          location = then_node.location.should_not be_nil
+          location.line_number.should eq 2
+          location = then_node.end_location.should_not be_nil
+          location.line_number.should eq 5
+
+          location = else_node.location.should_not be_nil
+          location.line_number.should eq 7
+          location = else_node.end_location.should_not be_nil
+          location.line_number.should eq 7
+        end
+
+        it do
+          parser = Parser.new(<<-CR)
+            {% if true %}
+              {{ "
+
+                bar
+
+              " }}
+            {% else %}
+              {% "biz" %}
+            {% end %}
+          CR
+
+          node = parser.parse.should be_a MacroIf
+          then_node = node.then.should(be_a(Expressions)).expressions[1].should be_a MacroExpression
+          else_node = node.else.should(be_a(Expressions)).expressions[1].should be_a MacroExpression
+
+          location = then_node.location.should_not be_nil
+          location.line_number.should eq 2
+          location = then_node.end_location.should_not be_nil
+          location.line_number.should eq 6
+
+          location = else_node.location.should_not be_nil
+          location.line_number.should eq 8
+          location = else_node.end_location.should_not be_nil
+          location.line_number.should eq 8
+        end
+      end
+
       it "sets correct location of trailing ensure" do
         parser = Parser.new("foo ensure bar")
         node = parser.parse.as(ExceptionHandler)
