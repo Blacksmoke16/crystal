@@ -17,12 +17,19 @@ class Crystal::Program
 
   property? collect_covered_macro_nodes : Bool = false
   getter covered_macro_nodes = Array({ASTNode, Location, Bool}).new
+  getter collected_covered_macro_nodes = Array(Array({ASTNode, Location, Bool})).new
 
   def expand_macro(a_macro : Macro, call : Call, scope : Type, path_lookup : Type? = nil, a_def : Def? = nil)
     check_call_to_deprecated_macro a_macro, call
 
     interpreter = MacroInterpreter.new self, scope, path_lookup || scope, a_macro, call, a_def, in_macro: true
     a_macro.body.accept interpreter
+
+    if self.collect_covered_macro_nodes?
+      @collected_covered_macro_nodes << @covered_macro_nodes.dup.uniq! # .dup #unless @covered_macro_nodes.empty?
+      @covered_macro_nodes.clear
+    end
+
     {interpreter.to_s, interpreter.macro_expansion_pragmas}
   end
 
@@ -30,6 +37,12 @@ class Crystal::Program
     interpreter = MacroInterpreter.new self, scope, path_lookup || scope, node.location, def: a_def, in_macro: false
     interpreter.free_vars = free_vars
     node.accept interpreter
+
+    if self.collect_covered_macro_nodes?
+      @collected_covered_macro_nodes << @covered_macro_nodes.dup # .dup #unless @covered_macro_nodes.empty?
+      @covered_macro_nodes.clear
+    end
+
     {interpreter.to_s, interpreter.macro_expansion_pragmas}
   end
 

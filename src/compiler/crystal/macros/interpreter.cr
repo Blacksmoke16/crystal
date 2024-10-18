@@ -143,7 +143,7 @@ module Crystal
     end
 
     def visit(node : MacroExpression)
-      self.collect_covered_node node.exp
+      # self.collect_covered_node node.exp
       node.exp.accept self
 
       if node.output?
@@ -221,18 +221,17 @@ module Crystal
     end
 
     def visit(node : MacroIf)
-      # self.collect_covered_node node
+      self.collect_covered_node node
 
       node.cond.accept self
 
-      body = if @last.truthy?
-               self.collect_covered_node node.else, true
-               self.collect_covered_node node.then
-             else
-               self.collect_covered_node node.then, true
-               self.collect_covered_node node.else
-             end
+      body, missed = if @last.truthy?
+                       {self.collect_covered_node(node.then), true}
+                     else
+                       {self.collect_covered_node(node.else), false}
+                     end
 
+      self.collect_covered_node missed ? node.else : node.then, true
       body.accept self
 
       false
@@ -406,13 +405,11 @@ module Crystal
       node.cond.accept self
 
       body = if @last.truthy?
-               self.collect_covered_node(node.then).tap do
-                 self.collect_covered_node node.else, true
-               end
+               self.collect_covered_node node.else, true
+               self.collect_covered_node node.then
              else
-               self.collect_covered_node(node.else).tap do
-                 self.collect_covered_node node.then, true
-               end
+               self.collect_covered_node node.then, true
+               self.collect_covered_node node.else
              end
 
       body.accept self
@@ -674,7 +671,7 @@ module Crystal
     end
 
     def visit(node : Nop | NilLiteral | BoolLiteral | NumberLiteral | CharLiteral | StringLiteral | SymbolLiteral | RangeLiteral | RegexLiteral | MacroId | TypeNode | Def)
-      # self.collect_covered_node node
+      self.collect_covered_node node
 
       @last = node.clone_without_location
       false
