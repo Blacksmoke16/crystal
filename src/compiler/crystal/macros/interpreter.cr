@@ -94,7 +94,6 @@ module Crystal
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
 
-      # TODO: Do we need to handle VirtualFiles?
       unless (filename = location.filename).is_a? String
         f = filename.as VirtualFile
 
@@ -107,18 +106,6 @@ module Crystal
         # FIXME: Is there a better way to handle this?
         # Need to determine if the macro expression is multi-line so we can calculate proper line number for the node in the source file.
         is_multi_line = !source_lines[node_line_number - 1].ends_with?("%}") || source_lines[node_line_number - 2].ends_with? "%}"
-
-        # pp! node,
-        #   node.class,
-        #   is_multi_line,
-        #   node_line_number,
-        #   source_lines[node_line_number - 1],
-        #   f.source,
-        #   location,
-        #   location.macro_location
-
-        # puts ""
-        # puts ""
 
         location = Location.new(
           macro_location.filename,
@@ -143,7 +130,7 @@ module Crystal
     end
 
     def visit(node : MacroExpression)
-      # self.collect_covered_node node.exp
+      self.collect_covered_node node.exp
       node.exp.accept self
 
       if node.output?
@@ -225,13 +212,14 @@ module Crystal
 
       node.cond.accept self
 
-      body, missed = if @last.truthy?
-                       {self.collect_covered_node(node.then), true}
-                     else
-                       {self.collect_covered_node(node.else), false}
-                     end
+      body = if @last.truthy?
+               self.collect_covered_node(node.else, true)
+               node.then
+             else
+               self.collect_covered_node(node.then, true)
+               node.else
+             end
 
-      self.collect_covered_node missed ? node.else : node.then, true
       body.accept self
 
       false
@@ -405,11 +393,11 @@ module Crystal
       node.cond.accept self
 
       body = if @last.truthy?
-               self.collect_covered_node node.else, true
-               self.collect_covered_node node.then
+               self.collect_covered_node(node.else, true)
+               node.then
              else
-               self.collect_covered_node node.then, true
-               self.collect_covered_node node.else
+               self.collect_covered_node(node.then, true)
+               node.else
              end
 
       body.accept self
@@ -423,11 +411,11 @@ module Crystal
       node.cond.accept self
 
       body = if @last.truthy?
-               self.collect_covered_node node.then, true
-               self.collect_covered_node node.else
+               self.collect_covered_node(node.then, true)
+               node.else
              else
-               self.collect_covered_node node.else, true
-               self.collect_covered_node node.then
+               self.collect_covered_node(node.else, true)
+               node.then
              end
 
       body.accept self

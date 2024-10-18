@@ -26,7 +26,7 @@ class Crystal::Program
     a_macro.body.accept interpreter
 
     if self.collect_covered_macro_nodes?
-      @collected_covered_macro_nodes << @covered_macro_nodes.dup.uniq! # .dup #unless @covered_macro_nodes.empty?
+      @collected_covered_macro_nodes << @covered_macro_nodes.dup
       @covered_macro_nodes.clear
     end
 
@@ -39,7 +39,7 @@ class Crystal::Program
     node.accept interpreter
 
     if self.collect_covered_macro_nodes?
-      @collected_covered_macro_nodes << @covered_macro_nodes.dup # .dup #unless @covered_macro_nodes.empty?
+      @collected_covered_macro_nodes << @covered_macro_nodes.dup
       @covered_macro_nodes.clear
     end
 

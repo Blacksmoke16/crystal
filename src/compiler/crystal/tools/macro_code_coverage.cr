@@ -51,41 +51,64 @@ module Crystal
 
     def compute_coverage(result : Compiler::Result)
       result.program.collected_covered_macro_nodes
-        # .select { |nodes| nodes.any? { |(_, location, _)| match_path? location.filename.as(String) } }
+        .select { |nodes| nodes.any? { |(_, location, _)| match_path? location.filename.as(String) } }
         .each do |nodes|
-          # Do some pre-processing on the nodes
-          nodes = nodes
+          nodes
             .chunk { |(_, location, _)| location.line_number }
-            .map { |(_, nodes)| nodes.first }
-            .map { |(node, location, missed)| {node, self.normalize_location(location), missed} }
-            .select { |(_, location, _)| match_path? location.filename.as(String) }
-            .to_a
+            .each do |(line_number, nodes_by_line)|
+              self.process_line(line_number, nodes_by_line).each do |(count, location)|
+                @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
+                                                                 in String
+                                                                   hits, _, total = existing_hits.partition '/'
 
-          next if nodes.empty?
-
-          # nodes.each do |(node, location, missed)|
-          #   p!({node.to_s.gsub("\n", ""), node.class, location, missed})
-          # end
-
-          # puts ""
-          # puts ""
-
-          node, location, missed = nodes.first
-
-          # If the first node is a conditional, handle partial hits
-          if node.is_a?(If) && (branches = condtional_statement_branches(node)) && branches > 1
-            next self.visit node, location
-          end
-
-          nodes.each do |(node, location, missed)|
-            next self.increment location, 0 if missed
-
-            self.visit node, location
-          end
+                                                                   hits.to_i == total.to_i ? hits.to_i + count : "#{hits.to_i + count}/#{total}"
+                                                                 in Int32 then existing_hits + count
+                                                                 in Nil
+                                                                   count
+                                                                 end
+              end
+            end
+          puts ""
+          puts "-" * 10
+          puts ""
         end
 
       @hits
     end
+
+    private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool})) : Array({Int32, Location})
+      pp! line
+
+      nodes.each do |(node, location, missed)|
+        p!({node.to_s.gsub("\n", ""), node.class, location, missed})
+      end
+
+      puts ""
+
+      node, location, missed = nodes.first
+
+      if nodes.none? { |(_, _, missed)| missed }
+        return [{1, self.normalize_location(location)}]
+      end
+
+      # Workaround https://github.com/crystal-lang/crystal/issues/14884#issuecomment-2423332237
+      if node.is_a?(MacroIf) && nodes.last[2]
+        missed_location = Location.new(
+          location.filename,
+          location.line_number + 1,
+          location.column_number
+        )
+
+        return [
+          {1, self.normalize_location(location)},
+          {0, self.normalize_location(missed_location)},
+        ]
+      end
+
+      [{0, self.normalize_location(location)}]
+    end
+
+    @last_location : Location? = nil
 
     def visit(node : If | Unless, location : Location) : Nil
       # If there are more than 1 branch, we need to increment a partial hit
@@ -94,11 +117,16 @@ module Crystal
       end
     end
 
-    def visit(node : MacroIf, location : Location) : Nil
+    def visit(node : MacroIf | Expressions, location : Location) : Nil
     end
 
     def visit(node : ASTNode, location : Location) : Nil
+      if @last_location.try(&.line_number) == location.line_number
+        return
+      end
+
       self.increment location
+      @last_location = location
     end
 
     private def increment(location : Location, count : Int32 = 1, override : Bool = false) : Nil
