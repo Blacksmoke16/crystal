@@ -25,12 +25,9 @@ class Crystal::Program
     interpreter = MacroInterpreter.new self, scope, path_lookup || scope, a_macro, call, a_def, in_macro: true
     a_macro.body.accept interpreter
 
-    if self.collect_covered_macro_nodes?
-      @collected_covered_macro_nodes << @covered_macro_nodes.dup
-      @covered_macro_nodes.clear
-    end
-
     {interpreter.to_s, interpreter.macro_expansion_pragmas}
+  ensure
+    self.flush_collected_nodes
   end
 
   def expand_macro(node : ASTNode, scope : Type, path_lookup : Type? = nil, free_vars = nil, a_def : Def? = nil)
@@ -38,12 +35,16 @@ class Crystal::Program
     interpreter.free_vars = free_vars
     node.accept interpreter
 
+    {interpreter.to_s, interpreter.macro_expansion_pragmas}
+  ensure
+    self.flush_collected_nodes
+  end
+
+  private def flush_collected_nodes : Nil
     if self.collect_covered_macro_nodes?
       @collected_covered_macro_nodes << @covered_macro_nodes.dup
       @covered_macro_nodes.clear
     end
-
-    {interpreter.to_s, interpreter.macro_expansion_pragmas}
   end
 
   def parse_macro_source(generated_source, macro_expansion_pragmas, the_macro, node, vars, current_def = nil, inside_type = false, inside_exp = false, mode : Parser::ParseMode = :normal, visibility : Visibility = :public)

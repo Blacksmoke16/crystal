@@ -90,10 +90,11 @@ module Crystal
       @program.collect_covered_macro_nodes?
     end
 
-    private def collect_covered_node(node : ASTNode, missed : Bool = false) : ASTNode
+    def collect_covered_node(node : ASTNode, missed : Bool = false) : ASTNode
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
 
+      # Workaround https://github.com/crystal-lang/crystal/issues/14880#issuecomment-2412480673
       unless (filename = location.filename).is_a? String
         f = filename.as VirtualFile
 

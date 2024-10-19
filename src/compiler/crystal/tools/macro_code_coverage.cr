@@ -56,7 +56,9 @@ module Crystal
           nodes
             .chunk { |(_, location, _)| location.line_number }
             .each do |(line_number, nodes_by_line)|
-              self.process_line(line_number, nodes_by_line).each do |(count, location)|
+              self.process_line(line_number, nodes_by_line) do |(count, location, branches)|
+                location = self.normalize_location(location)
+
                 @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
                                                                  in String
                                                                    hits, _, total = existing_hits.partition '/'
@@ -64,31 +66,37 @@ module Crystal
                                                                    hits.to_i == total.to_i ? hits.to_i + count : "#{hits.to_i + count}/#{total}"
                                                                  in Int32 then existing_hits + count
                                                                  in Nil
-                                                                   count
+                                                                   branches ? "#{count}/#{branches}" : count
                                                                  end
               end
             end
-          puts ""
-          puts "-" * 10
-          puts ""
+          # puts ""
+          # puts "-" * 10
+          # puts ""
         end
 
       @hits
     end
 
-    private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool})) : Array({Int32, Location})
-      pp! line
+    private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool}), & : -> {Int32, Location, Int32?}) : Nil
+      # pp! line
 
-      nodes.each do |(node, location, missed)|
-        p!({node.to_s.gsub("\n", ""), node.class, location, missed})
-      end
+      # nodes.each do |(node, location, missed)|
+      #   p!({node.to_s.gsub("\n", ""), node.class, location, missed})
+      # end
 
-      puts ""
+      # puts ""
 
       node, location, missed = nodes.first
 
+      if node.is_a?(If | Unless) && (branches = self.condtional_statement_branches(node)) > 1
+        yield({1, location, branches})
+        return
+      end
+
       if nodes.none? { |(_, _, missed)| missed }
-        return [{1, self.normalize_location(location)}]
+        yield({1, location, nil})
+        return
       end
 
       # Workaround https://github.com/crystal-lang/crystal/issues/14884#issuecomment-2423332237
@@ -99,62 +107,12 @@ module Crystal
           location.column_number
         )
 
-        return [
-          {1, self.normalize_location(location)},
-          {0, self.normalize_location(missed_location)},
-        ]
-      end
-
-      [{0, self.normalize_location(location)}]
-    end
-
-    @last_location : Location? = nil
-
-    def visit(node : If | Unless, location : Location) : Nil
-      # If there are more than 1 branch, we need to increment a partial hit
-      if (branches = self.condtional_statement_branches(node)) > 1
-        self.set_or_increment location, branches
-      end
-    end
-
-    def visit(node : MacroIf | Expressions, location : Location) : Nil
-    end
-
-    def visit(node : ASTNode, location : Location) : Nil
-      if @last_location.try(&.line_number) == location.line_number
+        yield({1, location, nil})
+        yield({0, missed_location, nil})
         return
       end
 
-      self.increment location
-      @last_location = location
-    end
-
-    private def increment(location : Location, count : Int32 = 1, override : Bool = false) : Nil
-      @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
-                                                       in String
-                                                         hits, _, total = existing_hits.partition '/'
-
-                                                         hits.to_i == total.to_i ? hits.to_i + count : "#{hits.to_i + count}/#{total}"
-                                                       in Int32 then override ? count : existing_hits + count
-                                                       in Nil
-                                                         count
-                                                       end
-    end
-
-    private def set_or_increment(location : Location, branches : Int32, count : Int32 = 1)
-      # If the existing hits value is:
-      # * String: Increment hits, up to *branches*
-      # * Int32: All branches were hit, so switched back to simpler total hit counter.
-      # * Nil: Newly found partial hit
-      @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
-                                                       in String
-                                                         hits, _, total = existing_hits.partition '/'
-
-                                                         hits.to_i >= total.to_i ? hits.to_i + count : "#{hits.to_i + count}/#{total}"
-                                                       in Int32 then existing_hits += count
-                                                       in Nil
-                                                         "#{count}/#{branches}"
-                                                       end
+      yield({0, location, nil})
     end
 
     # Returns how many unique branches this `If` statement consist of on a single line, assuming `1` if it's not a ternary.
