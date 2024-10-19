@@ -22,6 +22,7 @@ module Crystal
     private CURRENT_DIR = Dir.current
 
     @hits = Hash(String, Hash(Int32, Int32 | String)).new { |hash, key| hash[key] = Hash(Int32, Int32 | String).new(0) }
+    @conditional_hit_cache = Hash(String, Hash(Int32, Set(ASTNode))).new { |hash, key| hash[key] = Hash(Int32, Set(ASTNode)).new { |h, k| h[k] = Set(ASTNode).new } }
 
     property includes = [] of String
     property excludes = [] of String
@@ -30,6 +31,8 @@ module Crystal
       @hits.clear
 
       self.compute_coverage result
+
+      # pp! @conditional_hit_cache
 
       JSON.build STDOUT do |builder|
         builder.object do
@@ -63,7 +66,7 @@ module Crystal
                                                                  in String
                                                                    hits, _, total = existing_hits.partition '/'
 
-                                                                   hits.to_i == total.to_i ? hits.to_i + count : "#{hits.to_i + count}/#{total}"
+                                                                   "#{hits.to_i == total.to_i ? hits : hits.to_i + count}/#{total}"
                                                                  in Int32 then existing_hits + count
                                                                  in Nil
                                                                    branches ? "#{count}/#{branches}" : count
@@ -89,13 +92,17 @@ module Crystal
 
       node, location, missed = nodes.first
 
-      if node.is_a?(If | Unless) && (branches = self.condtional_statement_branches(node)) > 1
-        yield({1, location, branches})
+      # If no nodes on this line were missed, we can be assured it was a hit
+      if nodes.none? { |(_, _, missed)| missed }
+        yield({1, location, nil})
         return
       end
 
-      if nodes.none? { |(_, _, missed)| missed }
-        yield({1, location, nil})
+      if (conditional_node = nodes.find(&.[0].is_a?(If | Unless))) && (node = conditional_node[0]).is_a?(If | Unless) && (branches = self.condtional_statement_branches(node)) > 1
+        # Keep track of what specific conditional branches were hit and missed as to enure a proper count
+        newly_hit = @conditional_hit_cache[location.filename][location.line_number].add? nodes.reverse.find(nodes.last) { |(_, _, missed)| missed }[0]
+
+        yield({newly_hit ? 1 : 0, location, branches})
         return
       end
 

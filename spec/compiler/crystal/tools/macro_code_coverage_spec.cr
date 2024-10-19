@@ -35,6 +35,12 @@ describe "macro_code_coverage" do
     {{ true ? 1 : 0 }}
     CR
 
+  assert_coverage <<-'CR', {1 => 1, 2 => "1/2"}
+    {% begin %}
+      {{true ? 1 : 0}} + {{2}}
+    {% end %}
+    CR
+
   assert_coverage <<-'CR', {1 => "1/3"}
     {{ true ? 1 : x == 2 ? 2 : 3 }}
     CR
@@ -58,17 +64,7 @@ describe "macro_code_coverage" do
     test(3)
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => "1/2"}
-    {% begin %}
-      {{true ? 1 : 0}} + {{2}}
-    {% end %}
-    CR
-
-  # assert_coverage <<-'CR', {1 => "1/2"}
-  # {% if true %}1{% else %}0{% end %}
-  # CR
-
-  assert_coverage <<-'CR', {2 => 4}
+  assert_coverage <<-'CR', {2 => "3/3"}
     macro test(x)
       {{ x == 1 ? 1 : x == 2 ? 2 : 3 }}
     end
@@ -97,6 +93,21 @@ describe "macro_code_coverage" do
     test(2)
     test(1)
     CR
+
+  assert_coverage <<-'CR', {1 => "1/2"}
+    {% tags = (tags = (1 + 1)) ? tags : nil %}
+    CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => "1/2", 3 => 3}
+    {% for type in [1, 2, 3] %}
+      {% tags = (tags = type) ? tags : nil %}
+      {% tags %}
+    {% end %}
+    CR
+
+  # assert_coverage <<-'CR', {1 => "1/2"}
+  # {% if true %}1{% else %}0{% end %}
+  # CR
 
   assert_coverage <<-'CR', {1 => 1}
     {% raise "foo" %}
