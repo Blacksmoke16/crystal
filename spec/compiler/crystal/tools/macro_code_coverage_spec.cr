@@ -206,4 +206,15 @@ describe "macro_code_coverage" do
       {% end %}
     {% end %}
     CR
+
+  assert_coverage <<-'CR', {4 => 1, 5 => 1}
+    macro finished
+      {% verbatim do %}
+        {%
+          10 * 10
+          10 * 20
+        %}
+      {% end %}
+    end
+    CR
 end
