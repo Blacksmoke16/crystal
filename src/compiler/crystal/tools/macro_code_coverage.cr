@@ -60,6 +60,8 @@ module Crystal
             .chunk { |(_, location, _)| location.line_number }
             .each do |(line_number, nodes_by_line)|
               self.process_line(line_number, nodes_by_line) do |(count, location, branches)|
+                next unless location.filename.is_a? String
+
                 location = self.normalize_location(location)
 
                 @hits[location.filename][location.line_number] = case existing_hits = @hits[location.filename][location.line_number]?
@@ -81,7 +83,7 @@ module Crystal
       @hits
     end
 
-    private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool}), & : -> {Int32, Location, Int32?}) : Nil
+    private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool}), & : {Int32, Location, Int32?} ->) : Nil
       # pp! line
 
       # nodes.each do |(node, location, missed)|

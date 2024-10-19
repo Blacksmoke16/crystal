@@ -98,19 +98,34 @@ module Crystal
       unless (filename = location.filename).is_a? String
         f = filename.as VirtualFile
 
-        return node unless f.source.includes? "* 1"
         return node unless macro_location = location.macro_location
 
         node_line_number = location.line_number
-        source_lines = f.source.lines
+        source_lines = f.source.lines false
+        node_source = source_lines[node_line_number - 1].strip
 
         # FIXME: Is there a better way to handle this?
-        # Need to determine if the macro expression is multi-line so we can calculate proper line number for the node in the source file.
-        is_multi_line = !source_lines[node_line_number - 1].ends_with?("%}") || source_lines[node_line_number - 2].ends_with? "%}"
+        #
+        # If a node is surrounded by `{% %}` we can assume it's on a single line.
+        # Multiline nodes of only a single item are normalized so we won't be able to differentiate.
+        #
+        # Empty lines and comments are also stripped so have no way to calculate proper line number in those cases :/
+        is_single_line = node_source.starts_with?("{%") && node_source.ends_with?("%}")
 
+        if macro_location.filename.as(String).ends_with? "cov.cr"
+          # p({node.to_s.gsub("\n", "*"),
+          #    location,
+          #    macro_location,
+          #    location.expanded_location,
+          #    (is_single_line ? 0 : 1),
+          #    f.source})
+
+          # puts ""
+          # puts ""
+        end
         location = Location.new(
           macro_location.filename,
-          macro_location.line_number + location.line_number + (is_multi_line ? 1 : 0),
+          macro_location.line_number + node_line_number + (is_single_line ? 0 : 1),
           location.column_number
         )
       end
