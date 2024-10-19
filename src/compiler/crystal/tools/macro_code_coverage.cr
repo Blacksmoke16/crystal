@@ -108,11 +108,17 @@ module Crystal
 
       # Workaround https://github.com/crystal-lang/crystal/issues/14884#issuecomment-2423332237
       if node.is_a?(MacroIf) && nodes.last[2]
-        missed_location = Location.new(
-          location.filename,
-          location.line_number + 1,
-          location.column_number
-        )
+        node, missed_location, _ = nodes.last
+
+        if node.is_a?(Expressions)
+          missed_location = node.expressions.reject(MacroLiteral).first?.try(&.location) || location
+        else
+          missed_location = Location.new(
+            location.filename,
+            location.line_number + 1,
+            location.column_number
+          )
+        end
 
         yield({1, location, nil})
         yield({0, missed_location, nil})

@@ -228,4 +228,11 @@ describe "macro_code_coverage" do
       {% end %}
     end
     CR
+
+  assert_coverage <<-'CR', {1 => 1, 3 => 0}
+    {% if false %}
+      # foo
+      {% 1 + 1 %}
+    {% end %}
+    CR
 end
