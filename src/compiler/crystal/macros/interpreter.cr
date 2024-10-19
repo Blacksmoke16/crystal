@@ -214,10 +214,22 @@ module Crystal
       node.cond.accept self
 
       body = if @last.truthy?
-               self.collect_covered_node(node.else, true)
+               if node.is_unless?
+                 self.collect_covered_node node.then
+                 self.collect_covered_node node.else, true
+               else
+                 self.collect_covered_node node.else, true
+                 node.then
+               end
                node.then
              else
-               self.collect_covered_node(node.then, true)
+               if node.is_unless?
+                 self.collect_covered_node node.else
+                 self.collect_covered_node node.then, true
+               else
+                 self.collect_covered_node node.then, true
+                 self.collect_covered_node node.else
+               end
                node.else
              end
 

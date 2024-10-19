@@ -123,6 +123,14 @@ module Crystal
         yield({1, location, nil})
         yield({0, missed_location, nil})
         return
+      elsif node.is_a?(Expressions) && missed && nodes.size == 1
+        yield({0, location, nil})
+
+        if loc = node.expressions.reject(MacroLiteral).first?.try(&.location)
+          yield({0, loc, nil})
+        end
+
+        return
       end
 
       yield({0, location, nil})

@@ -138,7 +138,7 @@ describe "macro_code_coverage" do
     {% 3 %}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 0, 4 => 1}
+  assert_coverage <<-'CR', {1 => 1, 2 => 0, 3 => 1, 4 => 1}
     {% unless true %}
       {{0}}
     {% else %}
@@ -146,7 +146,7 @@ describe "macro_code_coverage" do
     {% end %}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 0}
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 0, 4 => 0}
     {% unless false %}
       {{0}}
     {% else %}
@@ -180,7 +180,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 3, 4 => 1, 3 => 3, 5 => 3, 6 => 0, 8 => 2}
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 3, 4 => 1, 3 => 3, 5 => 3, 6 => 0, 7 => 2, 8 => 2}
     {% begin %}
       {% for v in {1, 2, 3} %}
         {% if v == 2 %}
@@ -233,6 +233,18 @@ describe "macro_code_coverage" do
     {% if false %}
       # foo
       {% 1 + 1 %}
+    {% end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 2, 4 => 1, 5 => 1, 6 => 1}
+    {% begin %}
+      {% for vals in [[] of Int32, [1]] %}
+        {% if vals.empty? %}
+          {{1 + 1}}
+        {% else %}
+          {{2 + 2}}
+        {% end %}
+      {% end %}
     {% end %}
     CR
 end
