@@ -90,6 +90,10 @@ module Crystal
       @program.collect_covered_macro_nodes?
     end
 
+    @@source_code_lines_cache = Hash(String, Array(String)).new do |hash, key|
+      hash[key] = File.read_lines(key) rescue [] of String
+    end
+
     def collect_covered_node(node : ASTNode, missed : Bool = false) : ASTNode
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
@@ -121,7 +125,7 @@ module Crystal
         # This implementation does leave room for false positives if multiple lines happen to include the same node source on multiple lines, like the last spec example.
         #
         # Finally we can calculate the actual line number by summing the offset with the node index, possibly plus 1 more if it's a multi-line expression.
-        source_code_lines = File.read_lines(macro_location.filename.to_s) rescue [] of String
+        source_code_lines = @@source_code_lines_cache[macro_location.filename.to_s]
         offset = macro_location.line_number + node_line_number
         found_node_index = source_code_lines[offset..]?.try &.index do |line|
           line.includes?(node.to_s)
