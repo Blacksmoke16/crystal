@@ -112,20 +112,44 @@ module Crystal
         # Empty lines and comments are also stripped so have no way to calculate proper line number in those cases :/
         is_single_line = node_source.starts_with?("{%") && node_source.ends_with?("%}")
 
-        if macro_location.filename.as(String).ends_with? "cov.cr"
-          # p({node.to_s.gsub("\n", "*"),
-          #    location,
-          #    macro_location,
-          #    location.expanded_location,
-          #    (is_single_line ? 0 : 1),
-          #    f.source})
+        # FIXME: Is there a better way to handle this?
+        #
+        # In order to get the proper line number for multi-line `{% ... %}` nodes we need to read the source code itself.
+        # From there we can then determine the *offset* based on the sum of the macro itself, and the inner node.
+        #
+        # The node's actual line number is the offset plus the index of the first source code line that includes the node, or `0` if not found.
+        # This implementation does leave room for false positives if multiple lines happen to include the same node source on multiple lines, like the last spec example.
+        #
+        # Finally we can calculate the actual line number by summing the offset with the node index, possibly plus 1 more if it's a multi-line expression.
+        source_code_lines = File.read_lines(macro_location.filename.to_s) rescue [] of String
+        offset = macro_location.line_number + node_line_number
+        found_node_index = source_code_lines[offset..]?.try &.index do |line|
+          line.includes?(node.to_s)
+        end || 0
 
-          # puts ""
-          # puts ""
-        end
+        location_line_number = offset + found_node_index + (is_single_line ? 0 : 1)
+
+        # if macro_location.filename.as(String).ends_with? "cov.cr"
+        #   p({node.to_s.gsub("\n", "|~|"),
+        #      location,
+        #      macro_location,
+        #      # location.expanded_location,
+        #      # (is_single_line ? 0 : 1),
+        #      # f.source,
+        #      "|||||",
+        #      offset,
+        #      found_node_index,
+        #      location_line_number,
+        #      source_code_lines[offset..],
+        #      # source_code_lines[offset + found_node_index],
+        #   })
+
+        #   puts ""
+        #   puts ""
+        # end
         location = Location.new(
           macro_location.filename,
-          macro_location.line_number + node_line_number + (is_single_line ? 0 : 1),
+          location_line_number,
           location.column_number
         )
       end

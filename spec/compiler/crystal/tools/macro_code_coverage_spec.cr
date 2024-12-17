@@ -2,23 +2,30 @@ require "../../../spec_helper"
 include Crystal
 
 private def assert_coverage(code, expected_coverage, *, focus : Bool = false, spec_file = __FILE__, spec_line = __LINE__)
-  it focus: focus do
+  it focus: focus, file: spec_file, line: spec_line do
     compiler = Compiler.new true
     compiler.prelude = "empty"
     compiler.no_codegen = true
-    result = compiler.compile(Compiler::Source.new(".", code), "fake-no-build")
+
+    tempfile = File.tempfile("macro_code_coverage", ".cr") do |file|
+      file.puts code
+    end
+
+    result = compiler.compile(Compiler::Source.new(tempfile.path, code), "fake-no-build")
 
     processor = MacroCoverageProcessor.new
     processor.excludes << Path[Dir.current].to_posix.to_s
-    processor.includes << "."
+    processor.includes << tempfile.path
 
     hits = processor.compute_coverage(result)
 
-    unless hits = hits["."]?
+    unless hits = hits[Path.new(tempfile.path).relative_to(Dir.current).to_s]?
       fail "Failed to generate coverage", file: spec_file, line: spec_line
     end
 
     hits.should eq(expected_coverage), file: spec_file, line: spec_line
+  ensure
+    tempfile.try &.delete
   end
 end
 
@@ -261,16 +268,34 @@ describe "macro_code_coverage" do
     end
     CR
 
-  # assert_coverage <<-'CR', {1 => 1, 4 => 1, 7 => 1}
-  #   macro finished
-  #     {% verbatim do %}
-  #       {%
-  #         10 * 10
+  assert_coverage <<-'CR', {4 => 1, 7 => 1}
+    macro finished
+      {% verbatim do %}
+        {%
+          10 * 10
 
-  #         # Foo
-  #         10 * 20
-  #       %}
-  #     {% end %}
-  #   end
-  #   CR
+          # Foo
+          10 * 20
+        %}
+      {% end %}
+    end
+    CR
+
+  # TODO: Line 8 should only be `1`, but when looking for `10` from `10 * 10` it is matching line 8 again because both lines 8 and 10 include `10`.
+  # This can maybe be improved in the future, but with what we have at the moment this is better than nothing.
+  assert_coverage <<-'CR', {4 => 1, 8 => 2, 10 => 1}
+    macro finished
+      {% verbatim do %}
+        {%
+          10 * 10
+
+          # Foo
+
+          10 * 20
+
+          10 * 10
+        %}
+      {% end %}
+    end
+    CR
 end
