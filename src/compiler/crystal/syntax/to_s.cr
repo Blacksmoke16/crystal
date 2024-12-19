@@ -730,6 +730,7 @@ module Crystal
     def visit(node : MacroExpression)
       @str << (node.output? ? "{{" : "{% ")
       @str << ' ' if node.output?
+      newline if node.multiline?
       outside_macro do
         node.exp.accept self
       end
