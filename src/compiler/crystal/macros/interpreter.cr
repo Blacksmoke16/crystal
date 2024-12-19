@@ -69,7 +69,7 @@ module Crystal
         vars[macro_block_arg.name] = call_block || Nop.new
       end
 
-      new(program, scope, path_lookup, a_macro.location, vars, call.block, a_def, in_macro, call)
+      new(program, scope, path_lookup, a_macro.location, vars, call.block, a_def, in_macro, call, end_location: a_macro.end_location)
     end
 
     record MacroVarKey, name : String, exps : Array(ASTNode)?
@@ -77,9 +77,14 @@ module Crystal
     def initialize(@program : Program,
                    @scope : Type, @path_lookup : Type, @location : Location?,
                    @vars = {} of String => ASTNode, @block : Block? = nil, @def : Def? = nil,
-                   @in_macro = false, @call : Call? = nil)
+                   @in_macro = false, @call : Call? = nil, @end_location : Location? = nil)
       @str = IO::Memory.new(512) # Can't be String::Builder because of `{{debug}}`
       @last = Nop.new
+
+      if @location.try &.original_filename.as(String).ends_with? "test.cr"
+        pp! @location
+        pp! @end_location
+      end
     end
 
     def define_var(name : String, value : ASTNode) : Nil
@@ -584,6 +589,10 @@ module Crystal
     end
 
     def visit(node : Nop | NilLiteral | BoolLiteral | NumberLiteral | CharLiteral | StringLiteral | SymbolLiteral | RangeLiteral | RegexLiteral | MacroId | TypeNode | Def)
+      if node.location.try &.original_filename.as(String).ends_with? "test.cr"
+        pp! node, node.location
+      end
+
       @last = node.clone_without_location
       false
     end

@@ -24,7 +24,24 @@ class Crystal::Program
   end
 
   def expand_macro(node : ASTNode, scope : Type, path_lookup : Type? = nil, free_vars = nil, a_def : Def? = nil)
-    interpreter = MacroInterpreter.new self, scope, path_lookup || scope, node.location, def: a_def, in_macro: false
+    # if node.location.try &.original_filename.as(String).ends_with? "test.cr"
+    #   pp! node, node.class, node.location.try &.macro_location
+
+    #   n = case node
+    #       when MacroExpression
+    #         node.exp.as(Expressions).expressions
+    #       when Expressions
+    #         node.expressions
+    #       else
+    #         [] of ASTNode
+    #       end
+
+    #   n.each do |e|
+    #     pp({e.to_s, e.class, e.location})
+    #   end
+    # end
+
+    interpreter = MacroInterpreter.new self, scope, path_lookup || scope, node.location, def: a_def, in_macro: false, end_location: node.end_location
     interpreter.free_vars = free_vars
     node.accept interpreter
     {interpreter.to_s, interpreter.macro_expansion_pragmas}
