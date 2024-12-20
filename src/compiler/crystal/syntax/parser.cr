@@ -116,7 +116,7 @@ module Crystal
       slash_is_regex!
       # skip_statement_end
       while (@token.type.space? || @token.type.newline? || @token.type.op_semicolon?)
-        exps << MacroLiteral.new("\n") if @token.type.newline? && @in_macro_expression
+        exps << MacroLiteral.new("") if @token.type.newline? && @in_macro_expression
         next_token
       end
 
@@ -128,13 +128,18 @@ module Crystal
         exps << parse_multi_assign
         # skip_statement_end
         while (@token.type.space? || @token.type.newline? || @token.type.op_semicolon?)
-          exps << MacroLiteral.new("\n") if @token.type.newline? && @in_macro_expression
+          exps << MacroLiteral.new("") if @token.type.newline? && @in_macro_expression
           next_token
         end
-        break if end_token?
+        if end_token?
+          if exps[-1].is_a?(MacroLiteral)
+            exps.pop
+          end
+          break
+        end
       end
 
-      pp! exps if @token.location.try &.original_filename.as(String).ends_with? "test.cr"
+      pp! exps.map(&.inspect) if @token.location.try &.original_filename.as(String).ends_with? "test.cr"
 
       Expressions.from(exps)
     end

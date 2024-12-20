@@ -69,53 +69,26 @@ module Crystal
         vars[macro_block_arg.name] = call_block || Nop.new
       end
 
-      new(program, scope, path_lookup, a_macro.location, vars, call.block, a_def, in_macro, call, end_location: a_macro.end_location)
+      new(program, scope, path_lookup, a_macro.location, vars, call.block, a_def, in_macro, call)
     end
 
     record MacroVarKey, name : String, exps : Array(ASTNode)?
 
-    @lexer : Lexer? = nil
-
     def initialize(@program : Program,
                    @scope : Type, @path_lookup : Type, @location : Location?,
                    @vars = {} of String => ASTNode, @block : Block? = nil, @def : Def? = nil,
-                   @in_macro = false, @call : Call? = nil, @end_location : Location? = nil)
+                   @in_macro = false, @call : Call? = nil)
       @str = IO::Memory.new(512) # Can't be String::Builder because of `{{debug}}`
       @last = Nop.new
 
       if self.is_test_file?
         puts "New MacroInterpreter"
         pp! @location, @location.try &.original_filename
-        if (location = @location) && (filename = location.original_filename)
-          end_line = @end_location.try &.line_number || 100
-
-          pp({start_line: location.line_number, end_line: end_line})
-
-          source_contents = File.open(filename, "r") do |file|
-            file.each_line.skip(location.line_number - 1).join "\n"
-          end
-
-          lexer = Lexer.new source_contents
-          lexer.line_number = location.line_number
-          lexer.column_number = location.column_number
-
-          @lexer = lexer
-        end
       end
     end
 
     def is_test_file?
       @location.try &.original_filename.as(String).ends_with? "test.cr"
-    end
-
-    private def with_lexer(& : Lexer ->) : Nil
-      return unless lexer = @lexer
-
-      yield lexer
-    end
-
-    private def check_keyword(lexer, *keywords : Keyword)
-      raise "expecting keyword #{keywords.join " or "}" unless keywords.any? { |k| lexer.token.keyword?(k) }
     end
 
     def define_var(name : String, value : ASTNode) : Nil
@@ -162,16 +135,6 @@ module Crystal
 
     def visit(node : MacroVerbatim)
       pp(macro_verbatim: node.to_s, location: node.location) if self.is_test_file?
-
-      # Skip `verbatim do`
-      with_lexer do |lexer|
-        until lexer.token.keyword? :verbatim
-          lexer.next_token
-        end
-        lexer.next_token_skip_space # do
-        lexer.next_token_skip_space # %}
-        lexer.next_token_skip_space_or_newline
-      end
 
       exp = node.exp
       if exp.is_a?(Expressions)

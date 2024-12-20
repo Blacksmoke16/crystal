@@ -24,7 +24,7 @@ class Crystal::Program
   end
 
   def expand_macro(node : ASTNode, scope : Type, path_lookup : Type? = nil, free_vars = nil, a_def : Def? = nil)
-    interpreter = MacroInterpreter.new self, scope, path_lookup || scope, node.location, def: a_def, in_macro: false, end_location: node.end_location
+    interpreter = MacroInterpreter.new self, scope, path_lookup || scope, node.location, def: a_def, in_macro: false
 
     interpreter.free_vars = free_vars
     node.accept interpreter
@@ -34,7 +34,7 @@ class Crystal::Program
       puts "Expanded Macro ASTNode"
       puts
 
-      p output_str
+      puts output_str
 
       puts
       puts

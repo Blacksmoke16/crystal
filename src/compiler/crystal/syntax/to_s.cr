@@ -222,14 +222,13 @@ module Crystal
         node.expressions.each &.accept self
       else
         node.expressions.each_with_index do |exp, i|
+          pp({to_s_exp: exp, class: exp.class}) if node.location.try &.original_filename.as(String).ends_with? "test.cr"
+
           unless exp.nop?
             append_indent unless node.keyword.paren? && i == 0
             exp.accept self
 
-            # Ensure we do not write another newline after just writing one
-            if !exp.is_a?(MacroLiteral) || exp.value != "\n"
-              newline unless node.keyword.paren? && i == node.expressions.size - 1
-            end
+            newline unless node.keyword.paren? && i == node.expressions.size - 1
           end
         end
       end
