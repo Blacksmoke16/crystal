@@ -88,7 +88,7 @@ module Crystal
     end
 
     def is_test_file?
-      @location.try &.original_filename.as(String).ends_with? "test.cr"
+      @location.try &.original_filename.as?(String).try &.ends_with? "test.cr"
     end
 
     def define_var(name : String, value : ASTNode) : Nil

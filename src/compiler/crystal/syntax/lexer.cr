@@ -130,6 +130,7 @@ module Crystal
 
             if @comments_as_newlines
               @token.type = :newline
+              @token.value = "\n"
               return @token
             end
           end

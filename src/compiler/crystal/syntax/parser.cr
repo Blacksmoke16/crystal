@@ -111,13 +111,12 @@ module Crystal
 
       exp = parse_multi_assign
       exps = [] of ASTNode
+      newlines = [] of ASTNode
       exps.push exp
 
       slash_is_regex!
-      # skip_statement_end
-      while (@token.type.space? || @token.type.newline? || @token.type.op_semicolon?)
-        exps << MacroLiteral.new("") if @token.type.newline? && @in_macro_expression
-        next_token
+      collect_significant_newlines.tap do |newlines|
+        exps.concat newlines if newlines.size > 1
       end
 
       if end_token?
@@ -126,22 +125,28 @@ module Crystal
 
       loop do
         exps << parse_multi_assign
-        # skip_statement_end
-        while (@token.type.space? || @token.type.newline? || @token.type.op_semicolon?)
-          exps << MacroLiteral.new("") if @token.type.newline? && @in_macro_expression
-          next_token
+        collect_significant_newlines.tap do |newlines|
+          exps.concat newlines if newlines.size > 1
         end
-        if end_token?
-          if exps[-1].is_a?(MacroLiteral)
-            exps.pop
-          end
-          break
-        end
+
+        break if end_token?
       end
 
-      pp! exps.map(&.inspect) if @token.location.try &.original_filename.as(String).ends_with? "test.cr"
+      pp! exps.map(&.inspect) if @token.location.try &.original_filename.as?(String).try &.ends_with? "test.cr"
 
       Expressions.from(exps)
+    end
+
+    # Replicates what `#skip_statement_end` does, but collects the newlines if within a macro expression
+    private def collect_significant_newlines : Array(ASTNode)
+      newlines = [] of ASTNode
+
+      while (@token.type.space? || @token.type.newline? || @token.type.op_semicolon?)
+        newlines << MacroLiteral.new("") if @token.type.newline? && @in_macro_expression
+        next_token
+      end
+
+      newlines
     end
 
     def parse_multi_assign

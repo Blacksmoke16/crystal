@@ -40,6 +40,12 @@ private def node_source(string, node)
   source_between(string, node.location, node.end_location)
 end
 
+private def assert_location(node : ASTNode, line_number : Int32, column_number : Int32)
+  location = node.location.should_not be_nil
+  location.line_number.should eq line_number
+  location.column_number.should eq column_number
+end
+
 private def assert_end_location(source, line_number = 1, column_number = source.size, file = __FILE__, line = __LINE__)
   it "gets corrects end location for #{source.inspect}", file, line do
     string = "#{source}; 1"
@@ -1118,7 +1124,7 @@ module Crystal
     it_parses "puts {{**1}}", Call.new(nil, "puts", MacroExpression.new(DoubleSplat.new(1.int32)))
     it_parses "{{a = 1 if 2}}", MacroExpression.new(If.new(2.int32, Assign.new("a".var, 1.int32)))
     it_parses "{% a = 1 %}", MacroExpression.new(Assign.new("a".var, 1.int32), output: false)
-    it_parses "{%\na = 1\n%}", MacroExpression.new(Assign.new("a".var, 1.int32), output: false)
+    it_parses "{%\na = 1\n%}", MacroExpression.new(Assign.new("a".var, 1.int32), output: false, multiline: true)
     it_parses "{% a = 1 if 2 %}", MacroExpression.new(If.new(2.int32, Assign.new("a".var, 1.int32)), output: false)
     it_parses "{% if 1; 2; end %}", MacroExpression.new(If.new(1.int32, 2.int32), output: false)
     it_parses "{%\nif 1; 2; end\n%}", MacroExpression.new(If.new(1.int32, 2.int32), output: false)
@@ -1128,7 +1134,7 @@ module Crystal
     it_parses "{% unless 1; 2; else 3; end %}", MacroExpression.new(Unless.new(1.int32, 2.int32, 3.int32), output: false)
     it_parses "{% unless 1\n  x\nend %}", MacroExpression.new(Unless.new(1.int32, "x".var), output: false)
     it_parses "{% x unless 1 %}", MacroExpression.new(Unless.new(1.int32, "x".var), output: false)
-    it_parses "{%\n1\n2\n3\n%}", MacroExpression.new(Expressions.new([1.int32, 2.int32, 3.int32] of ASTNode), output: false)
+    it_parses "{%\n1\n2\n3\n%}", MacroExpression.new(Expressions.new([1.int32, 2.int32, 3.int32] of ASTNode), output: false, multiline: true)
 
     assert_syntax_error "{% unless 1; 2; elsif 3; 4; end %}"
     assert_syntax_error "{% unless 1 %} 2 {% elsif 3 %} 3 {% end %}"
@@ -2770,6 +2776,79 @@ module Crystal
         else_node_location.line_number.should eq 4
         else_node_location = else_node.expressions[1].end_location.should_not be_nil
         else_node_location.line_number.should eq 7
+      end
+
+      it "sets the correct location for MacroExpressions in a MacroVerbatim in a finished hook with significant whitespace" do
+        parser = Parser.new(<<-CR)
+        macro finished
+          {% verbatim do %}
+            {%
+              10
+
+              # Foo
+
+              20
+              30
+
+              # Bar
+
+              40
+            %}
+
+            {%
+              50
+              60
+            %}
+          {% end %}
+        end
+        CR
+
+        node = parser.parse.should be_a Macro
+
+        assert_location node, 1, 1
+
+        macro_body = node.body.should be_a Expressions
+        verbatim_node = macro_body[1].should be_a MacroVerbatim
+
+        expressions = verbatim_node.exp.as(Expressions).expressions
+        expressions.size.should eq 5
+
+        expressions[0].should eq MacroLiteral.new("\n    ")
+        expression = expressions[1].should be_a MacroExpression
+
+        macro_expression = expression.exp.as(Expressions).expressions
+        macro_expression.size.should eq 10
+        macro_expression.select(MacroLiteral).size.should eq 6
+
+        num = macro_expression[0].should be_a NumberLiteral
+        num.value.should eq "10"
+        assert_location num, 4, 7
+
+        num = macro_expression[4].should be_a NumberLiteral
+        num.value.should eq "20"
+        assert_location num, 8, 7
+
+        num = macro_expression[5].should be_a NumberLiteral
+        num.value.should eq "30"
+        assert_location num, 9, 7
+
+        num = macro_expression[9].should be_a NumberLiteral
+        num.value.should eq "40"
+        assert_location num, 13, 7
+
+        expression = expressions[3].should be_a MacroExpression
+
+        macro_expression = expression.exp.as(Expressions).expressions
+        macro_expression.size.should eq 2
+        macro_expression.select(MacroLiteral).size.should eq 0
+
+        num = macro_expression[0].should be_a NumberLiteral
+        num.value.should eq "50"
+        assert_location num, 17, 7
+
+        num = macro_expression[1].should be_a NumberLiteral
+        num.value.should eq "60"
+        assert_location num, 18, 7
       end
 
       it "sets correct location of Begin within another node" do
