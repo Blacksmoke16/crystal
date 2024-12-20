@@ -133,7 +133,7 @@ module Crystal
     end
 
     def visit(node : MacroExpression)
-      pp(macro_expression: node.to_s) if self.is_test_file?
+      pp(macro_expression: node.to_s, location: node.location) if self.is_test_file?
 
       node.exp.accept self
 
@@ -155,13 +155,13 @@ module Crystal
     end
 
     def visit(node : MacroLiteral)
-      pp(macro_literal: node.to_s) if self.is_test_file?
+      pp(macro_literal: node.to_s, location: node.location) if self.is_test_file?
       @str << node.value
       false
     end
 
     def visit(node : MacroVerbatim)
-      pp(macro_verbatim: node.to_s) if self.is_test_file?
+      pp(macro_verbatim: node.to_s, location: node.location) if self.is_test_file?
 
       # Skip `verbatim do`
       with_lexer do |lexer|
