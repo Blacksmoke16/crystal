@@ -110,22 +110,31 @@ module Crystal
       end
 
       exp = parse_multi_assign
+      exps = [] of ASTNode
+      exps.push exp
 
       slash_is_regex!
-      skip_statement_end
+      # skip_statement_end
+      while (@token.type.space? || @token.type.newline? || @token.type.op_semicolon?)
+        exps << MacroLiteral.new("\n") if @token.type.newline? && @in_macro_expression
+        next_token
+      end
 
       if end_token?
         return exp
       end
 
-      exps = [] of ASTNode
-      exps.push exp
-
       loop do
         exps << parse_multi_assign
-        skip_statement_end
+        # skip_statement_end
+        while (@token.type.space? || @token.type.newline? || @token.type.op_semicolon?)
+          exps << MacroLiteral.new("\n") if @token.type.newline? && @in_macro_expression
+          next_token
+        end
         break if end_token?
       end
+
+      pp! exps if @token.location.try &.original_filename.as(String).ends_with? "test.cr"
 
       Expressions.from(exps)
     end
@@ -3353,7 +3362,13 @@ module Crystal
 
     def parse_macro_control(start_location, macro_state = Token::MacroState.default)
       location = @token.location
-      next_token_skip_space_or_newline
+      next_token_skip_space
+      multiline = false
+
+      if @token.type.newline?
+        multiline = true
+        next_token_skip_space_or_newline
+      end
 
       case @token.value
       when Keyword::FOR
@@ -3437,10 +3452,12 @@ module Crystal
       end
 
       @in_macro_expression = true
+      @comments_as_newlines = true
       exps = parse_expressions
       @in_macro_expression = false
+      @comments_as_newlines = false
 
-      MacroExpression.new(exps, output: false).at(location).at_end(token_end_location)
+      MacroExpression.new(exps, output: false, multiline: multiline).at(location).at_end(token_end_location)
     end
 
     def parse_macro_if(start_location, macro_state, check_end = true, is_unless = false)

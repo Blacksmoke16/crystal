@@ -225,7 +225,11 @@ module Crystal
           unless exp.nop?
             append_indent unless node.keyword.paren? && i == 0
             exp.accept self
-            newline unless node.keyword.paren? && i == node.expressions.size - 1
+
+            # Ensure we do not write another newline after just writing one
+            if !exp.is_a?(MacroLiteral) || exp.value != "\n"
+              newline unless node.keyword.paren? && i == node.expressions.size - 1
+            end
           end
         end
       end
@@ -730,6 +734,7 @@ module Crystal
     def visit(node : MacroExpression)
       @str << (node.output? ? "{{" : "{% ")
       @str << ' ' if node.output?
+      newline if node.multiline?
       outside_macro do
         node.exp.accept self
       end

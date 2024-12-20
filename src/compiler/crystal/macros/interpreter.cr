@@ -176,6 +176,17 @@ module Crystal
       exp = node.exp
       if exp.is_a?(Expressions)
         exp.expressions.each do |subexp|
+          pp(subexp: subexp.to_s, class: subexp.class, location: subexp.location) if self.is_test_file?
+
+          if subexp.is_a?(MacroExpression)
+            case n = subexp.exp
+            when Expressions
+              n.expressions.each do |sub_sub_exp|
+                pp(sub_sub_exp: sub_sub_exp.to_s, class: sub_sub_exp.class, location: subexp.location) if self.is_test_file?
+              end
+            end
+          end
+
           subexp.to_s(@str)
         end
       else
@@ -636,7 +647,7 @@ module Crystal
 
     def visit(node : Nop | NilLiteral | BoolLiteral | NumberLiteral | CharLiteral | StringLiteral | SymbolLiteral | RangeLiteral | RegexLiteral | MacroId | TypeNode | Def)
       if self.is_test_file?
-        pp! node, node.location
+        pp({value: node.to_s, line_number: (node.location.try(&.line_number) || 0) + (node.location.try(&.macro_location.try(&.line_number)) || 0)})
       end
 
       @last = node.clone_without_location

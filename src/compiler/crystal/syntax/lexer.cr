@@ -7,6 +7,7 @@ module Crystal
   class Lexer
     property? doc_enabled : Bool
     property? comments_enabled : Bool
+    property? comments_as_newlines : Bool
     property? count_whitespace : Bool
     property? wants_raw : Bool
     property? slash_is_regex : Bool
@@ -69,6 +70,7 @@ module Crystal
       @doc_enabled = false
       @comment_is_doc = true
       @comments_enabled = false
+      @comments_as_newlines = false
       @count_whitespace = false
       @slash_is_regex = true
       @wants_raw = false
@@ -125,6 +127,11 @@ module Crystal
             return consume_comment(start)
           else
             skip_comment
+
+            if @comments_as_newlines
+              @token.type = :newline
+              return @token
+            end
           end
         end
       end
