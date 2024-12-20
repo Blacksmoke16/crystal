@@ -34,7 +34,7 @@ class Crystal::Program
       puts "Expanded Macro ASTNode"
       puts
 
-      puts output_str
+      p output_str
 
       puts
       puts
