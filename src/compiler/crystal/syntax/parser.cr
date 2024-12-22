@@ -132,39 +132,27 @@ module Crystal
         break if end_token?
       end
 
+      # if @token.location.try &.original_filename.as?(String).try &.ends_with? "test.cr"
+      #   pp! exps.map &.inspect
+      # end
+
       Expressions.from(exps)
     end
 
     # Replicates what `#skip_statement_end` does, but yields extra newlines as MacroLiterals.
     private def collect_additional_significant_newlines : Nil
-      newlines = 0
+      start_line = @token.line_number
 
-      while (@token.type.space? || @token.type.newline? || @token.type.op_semicolon?)
-        newlines += 1 if @token.type.newline? && @in_macro_expression
-        next_token
-      end
+      skip_statement_end
 
-      # Additional newlines are only those beyond 1 to ensure we don't turn:
-      #
-      # ```
-      # {%
-      #   1
-      #   2
-      # %}
-      # ```
-      # into:
-      # ```
-      # {%
-      #   1
-      #
-      #   2
-      # %}
-      # ```
-      #
-      # As the `to_s` logic already inserts the first one for us.
-      return unless newlines > 1
+      end_line = @token.line_number
 
-      newlines.times do
+      # if @token.location.try &.original_filename.as?(String).try &.ends_with? "test.cr"
+      #   pp(start: start_line, end: end_line)
+      # end
+
+      # ((end_line - 1) - start_line).times do
+      0.times do
         yield MacroLiteral.new ""
       end
     end
@@ -3482,10 +3470,10 @@ module Crystal
       end
 
       @in_macro_expression = true
-      @comments_as_newlines = true
+      # @comments_enabled = true
       exps = parse_expressions
       @in_macro_expression = false
-      @comments_as_newlines = false
+      # @comments_enabled = false
 
       MacroExpression.new(exps, output: false, multiline: multiline).at(location).at_end(token_end_location)
     end

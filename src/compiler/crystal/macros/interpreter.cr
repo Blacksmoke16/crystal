@@ -82,6 +82,10 @@ module Crystal
       @last = Nop.new
     end
 
+    def is_test_file?
+      @location.try &.original_filename.as?(String).try &.ends_with? "test.cr"
+    end
+
     def define_var(name : String, value : ASTNode) : Nil
       @vars[name] = value
     end
@@ -96,6 +100,19 @@ module Crystal
 
       unless (filename = location.filename).is_a? String
         return node unless macro_location = location.macro_location
+        virtual_file = filename.as VirtualFile
+
+        # if self.is_test_file?
+        #   p({node:                 node.to_s,
+        #      location:             location,
+        #      macro_location:       macro_location,
+        #      expanded_location:    location.expanded_location,
+        #      vf_expanded_location: virtual_file.expanded_location,
+        #   })
+
+        #   puts ""
+        #   puts ""
+        # end
 
         location = Location.new(
           macro_location.filename,

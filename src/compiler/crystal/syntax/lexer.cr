@@ -127,12 +127,6 @@ module Crystal
             return consume_comment(start)
           else
             skip_comment
-
-            if @comments_as_newlines
-              @token.type = :newline
-              @token.value = "\n"
-              return @token
-            end
           end
         end
       end
