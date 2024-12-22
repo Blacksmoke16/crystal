@@ -281,9 +281,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  # TODO: Line 8 should only be `1`, but when looking for `10` from `10 * 10` it is matching line 8 again because both lines 8 and 10 include `10`.
-  # This can maybe be improved in the future, but with what we have at the moment this is better than nothing.
-  assert_coverage <<-'CR', {4 => 1, 8 => 2, 10 => 1}
+  assert_coverage <<-'CR', {4 => 1, 8 => 1, 10 => 1}
     macro finished
       {% verbatim do %}
         {%

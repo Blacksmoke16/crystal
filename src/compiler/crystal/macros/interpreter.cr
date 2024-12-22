@@ -90,70 +90,16 @@ module Crystal
       @program.collect_covered_macro_nodes?
     end
 
-    @@source_code_lines_cache = Hash(String, Array(String)).new do |hash, key|
-      hash[key] = File.read_lines(key) rescue [] of String
-    end
-
     def collect_covered_node(node : ASTNode, missed : Bool = false) : ASTNode
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
 
-      # Workaround https://github.com/crystal-lang/crystal/issues/14880#issuecomment-2412480673
       unless (filename = location.filename).is_a? String
-        f = filename.as VirtualFile
-
         return node unless macro_location = location.macro_location
 
-        node_line_number = location.line_number
-        source_lines = f.source.lines false
-        node_source = source_lines[node_line_number - 1].strip
-
-        # FIXME: Is there a better way to handle this?
-        #
-        # If a node is surrounded by `{% %}` we can assume it's on a single line.
-        # Multiline nodes of only a single item are normalized so we won't be able to differentiate.
-        #
-        # Empty lines and comments are also stripped so have no way to calculate proper line number in those cases :/
-        is_single_line = node_source.starts_with?("{%") && node_source.ends_with?("%}")
-
-        # FIXME: Is there a better way to handle this?
-        #
-        # In order to get the proper line number for multi-line `{% ... %}` nodes we need to read the source code itself.
-        # From there we can then determine the *offset* based on the sum of the macro itself, and the inner node.
-        #
-        # The node's actual line number is the offset plus the index of the first source code line that includes the node, or `0` if not found.
-        # This implementation does leave room for false positives if multiple lines happen to include the same node source on multiple lines, like the last spec example.
-        #
-        # Finally we can calculate the actual line number by summing the offset with the node index, possibly plus 1 more if it's a multi-line expression.
-        source_code_lines = @@source_code_lines_cache[macro_location.filename.to_s]
-        offset = macro_location.line_number + node_line_number
-        found_node_index = source_code_lines[offset..]?.try &.index do |line|
-          line.includes?(node.to_s)
-        end || 0
-
-        location_line_number = offset + found_node_index + (is_single_line ? 0 : 1)
-
-        # if macro_location.filename.as(String).ends_with? "cov.cr"
-        #   p({node.to_s.gsub("\n", "|~|"),
-        #      location,
-        #      macro_location,
-        #      # location.expanded_location,
-        #      # (is_single_line ? 0 : 1),
-        #      # f.source,
-        #      "|||||",
-        #      offset,
-        #      found_node_index,
-        #      location_line_number,
-        #      source_code_lines[offset..],
-        #      # source_code_lines[offset + found_node_index],
-        #   })
-
-        #   puts ""
-        #   puts ""
-        # end
         location = Location.new(
           macro_location.filename,
-          location_line_number,
+          location.line_number + macro_location.line_number,
           location.column_number
         )
       end
