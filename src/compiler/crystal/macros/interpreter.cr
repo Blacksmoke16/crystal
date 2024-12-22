@@ -134,11 +134,11 @@ module Crystal
           macro_expansion_pragmas = @macro_expansion_pragmas ||= {} of Int32 => Array(Lexer::LocPragma)
           (macro_expansion_pragmas[@str.pos.to_i32] ||= [] of Lexer::LocPragma) << Lexer::LocPushPragma.new
           @str << "begin " if is_yield
-          @last.to_s(@str, macro_expansion_pragmas: macro_expansion_pragmas, emit_doc: true)
+          @last.to_s(@str, macro_expansion_pragmas: macro_expansion_pragmas, emit_doc: true, emit_location_pragmas: self.collect_covered_macro_nodes?)
           @str << " end" if is_yield
           (macro_expansion_pragmas[@str.pos.to_i32] ||= [] of Lexer::LocPragma) << Lexer::LocPopPragma.new
         else
-          @last.to_s(@str)
+          @last.to_s(@str, emit_location_pragmas: self.collect_covered_macro_nodes?)
         end
       end
 
@@ -154,10 +154,10 @@ module Crystal
       exp = node.exp
       if exp.is_a?(Expressions)
         exp.expressions.each do |subexp|
-          subexp.to_s(@str)
+          subexp.to_s(@str, emit_location_pragmas: self.collect_covered_macro_nodes?)
         end
       else
-        exp.to_s(@str)
+        exp.to_s(@str, emit_location_pragmas: self.collect_covered_macro_nodes?)
       end
       false
     end
