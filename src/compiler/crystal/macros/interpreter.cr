@@ -100,7 +100,17 @@ module Crystal
 
       unless (filename = location.filename).is_a? String
         return node unless macro_location = location.macro_location
-        virtual_file = filename.as VirtualFile
+
+        if self.is_test_file?
+          p({node:           node.to_s,
+             line:           location.line_number + macro_location.line_number,
+             location:       location,
+             macro_location: macro_location,
+
+          })
+          puts ""
+          puts ""
+        end
 
         location = Location.new(
           macro_location.filename,
