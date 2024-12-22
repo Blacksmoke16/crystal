@@ -115,7 +115,7 @@ module Crystal
 
       slash_is_regex!
 
-      collect_additional_significant_newlines do |node|
+      emit_additional_significant_newlines do |node|
         exps << node
       end
 
@@ -125,34 +125,27 @@ module Crystal
 
       loop do
         exps << parse_multi_assign
-        collect_additional_significant_newlines do |node|
+        emit_additional_significant_newlines do |node|
           exps << node
         end
 
         break if end_token?
       end
 
-      # if @token.location.try &.original_filename.as?(String).try &.ends_with? "test.cr"
-      #   pp! exps.map &.inspect
-      # end
-
       Expressions.from(exps)
     end
 
-    # Replicates what `#skip_statement_end` does, but yields extra newlines as MacroLiterals.
-    private def collect_additional_significant_newlines : Nil
-      start_line = @token.line_number
+    # Yields additional significant newlines when in a macro expression based on the difference in line number between the last token, and the next token after the statement end.
+    private def emit_additional_significant_newlines : Nil
+      start_line_number = @token.line_number
 
       skip_statement_end
 
-      end_line = @token.line_number
+      end_line_end = @token.line_number
 
-      # if @token.location.try &.original_filename.as?(String).try &.ends_with? "test.cr"
-      #   pp(start: start_line, end: end_line)
-      # end
+      return unless @in_macro_expression
 
-      # ((end_line - 1) - start_line).times do
-      0.times do
+      ((end_line_end - 1) - start_line_number).times do
         yield MacroLiteral.new ""
       end
     end
