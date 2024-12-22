@@ -262,6 +262,9 @@ module Crystal
     end
 
     def visit_if_or_unless(prefix, node)
+      if (loc = node.location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
       @str << prefix
       @str << ' '
       node.cond.accept self
@@ -275,6 +278,10 @@ module Crystal
       end
       append_indent
       @str << "end"
+
+      if (loc = node.end_location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
       false
     end
 

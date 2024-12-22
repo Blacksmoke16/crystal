@@ -319,4 +319,24 @@ describe "macro_code_coverage" do
       {% end %}
     end
     CR
+
+  assert_coverage <<-'CR', {4 => 1, 5 => 3, 6 => 1, 7 => 2, 8 => 1, 10 => 1, 13 => 3}
+    macro finished
+      {% verbatim do %}
+        {%
+          [0, 1, 2].each do |val|
+            str = if val >= 2
+                    "greater or equal to 2"
+                  elsif val == 1
+                    "equals 1"
+                  else
+                    "other"
+                  end
+
+            "Got: " + str
+          end
+        %}
+      {% end %}
+    end
+    CR
 end

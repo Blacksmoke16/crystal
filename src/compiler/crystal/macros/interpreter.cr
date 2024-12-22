@@ -102,18 +102,6 @@ module Crystal
         return node unless macro_location = location.macro_location
         virtual_file = filename.as VirtualFile
 
-        # if self.is_test_file?
-        #   p({node:                 node.to_s,
-        #      location:             location,
-        #      macro_location:       macro_location,
-        #      expanded_location:    location.expanded_location,
-        #      vf_expanded_location: virtual_file.expanded_location,
-        #   })
-
-        #   puts ""
-        #   puts ""
-        # end
-
         location = Location.new(
           macro_location.filename,
           location.line_number + macro_location.line_number,
