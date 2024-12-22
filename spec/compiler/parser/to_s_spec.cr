@@ -376,4 +376,30 @@ describe "ASTNode#to_s" do
       end
     end
     CRYSTAL
+
+  expect_to_s %({% {id: 10} %})
+  expect_to_s <<-'CR'
+    {%
+      data = {__nil: nil}
+      data["foo"] = {
+        id: 1, active: true,
+        name: "foo".upcase,
+        pie: 3.14,
+      }
+    %}
+    CR
+  expect_to_s <<-'CR', <<-'CR'
+    {%
+      {
+        id: 1,
+        pie: 3.14}
+    %}
+    CR
+    {%
+      {
+        id: 1,
+        pie: 3.14,
+      }
+    %}
+    CR
 end
