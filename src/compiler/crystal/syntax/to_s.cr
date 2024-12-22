@@ -220,8 +220,8 @@ module Crystal
         @str << ", " unless idx == node.entries.size - 1
       end
 
+      # If the opening brace has a newline after it, force the trailing brace to be as well
       if is_multiline
-        # Write the trailing comma if the ending `}` is on a diff line
         @str << ','
         @indent -= 1
         newline
