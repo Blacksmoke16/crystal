@@ -109,9 +109,14 @@ module Crystal
         return Nop.new
       end
 
-      exp = parse_multi_assign
       exps = [] of ASTNode
-      exps.push exp
+
+      emit_additional_significant_newlines false do |node|
+        exps << node
+      end
+
+      exp = parse_multi_assign
+      exps << exp
 
       slash_is_regex!
 
@@ -120,7 +125,7 @@ module Crystal
       end
 
       if end_token?
-        return exp
+        return Expressions.from exps
       end
 
       loop do
@@ -136,16 +141,16 @@ module Crystal
     end
 
     # Yields additional significant newlines when in a macro expression based on the difference in line number between the last token, and the next token after the statement end.
-    private def emit_additional_significant_newlines(&) : Nil
+    private def emit_additional_significant_newlines(remove_extra_newline : Bool = true, & : MacroLiteral ->) : Nil
       start_line_number = @token.line_number
 
       skip_statement_end
 
-      end_line_end = @token.line_number
+      end_line_number = @token.line_number
 
       return unless @in_macro_expression
 
-      ((end_line_end - 1) - start_line_number).times do
+      ((end_line_number - (remove_extra_newline ? 1 : 0)) - start_line_number).times do
         yield MacroLiteral.new ""
       end
     end
@@ -4178,7 +4183,13 @@ module Crystal
 
     def parse_if_after_condition(cond, location, check_end)
       slash_is_regex!
-      skip_statement_end
+
+      # If this `If` is in a macro expression, let #parse_expressions` handle advancing the lexer as the whitespace may be significant.
+      if @in_macro_expression
+        next_token
+      else
+        skip_statement_end
+      end
 
       a_then = parse_expressions
       skip_statement_end
