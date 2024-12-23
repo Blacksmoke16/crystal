@@ -388,6 +388,18 @@ describe "ASTNode#to_s" do
       }
     %}
     CR
+
+  expect_to_s <<-'CR'
+    {%
+      data = {__nil: nil}
+      data["foo"] = {
+        id: 1, active: true,
+        name: "foo".upcase,
+        pie: 3.14, biz: "baz", blah: false,
+      }
+    %}
+    CR
+
   expect_to_s <<-'CR', <<-'CR'
     {%
       {
