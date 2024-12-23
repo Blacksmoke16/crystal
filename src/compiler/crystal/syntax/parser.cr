@@ -4196,7 +4196,11 @@ module Crystal
 
       a_then = parse_expressions
       a_then = if a_then.is_a?(Expressions)
-                 Expressions.from exps.concat(a_then.expressions)
+                 exps.each do |e|
+                   a_then.expressions.unshift e
+                 end
+
+                 a_then
                else
                  exps << a_then
                  Expressions.from exps
