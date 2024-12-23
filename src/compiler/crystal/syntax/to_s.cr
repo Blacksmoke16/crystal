@@ -205,10 +205,10 @@ module Crystal
 
       node.entries.each_with_index do |entry, idx|
         if (current_entry_loc = entry.value.location) && (last_entry_loc = last_entry.value.location) && current_entry_loc.line_number > last_entry_loc.line_number
-          # Drop the space after the comma if moving to a new line
-          @str.pos -= 1
           newline
           append_indent
+        elsif !idx.zero?
+          @str << ' '
         end
 
         visit_named_arg_name(entry.key)
@@ -217,10 +217,10 @@ module Crystal
 
         last_entry = entry
 
-        @str << ", " unless idx == node.entries.size - 1
+        @str << ',' unless idx == node.entries.size - 1
       end
 
-      # If the opening brace has a newline after it, force the trailing brace to be as well
+      # If the opening brace has a newline after it, force the trailing brace to have one as well
       if is_multiline
         @str << ','
         @indent -= 1
@@ -1115,7 +1115,9 @@ module Crystal
     end
 
     def visit(node : Block)
-      @str << "do"
+      single_line_block = (node_loc = node.location) && (end_loc = node.end_location) && end_loc.line_number == node_loc.line_number
+
+      @str << (single_line_block ? '{' : "do")
 
       unless node.args.empty?
         @str << " |"
@@ -1135,11 +1137,21 @@ module Crystal
         @str << '|'
       end
 
-      newline
-      accept_with_indent(node.body)
+      @str << ' ' if single_line_block
 
+      if single_line_block
+        node.body.accept self
+      else
+        newline
+        accept_with_indent node.body
+      end
       append_indent
-      @str << "end"
+
+      if single_line_block
+        @str << ' ' << '}'
+      else
+        @str << "end"
+      end
 
       false
     end

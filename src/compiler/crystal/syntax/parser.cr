@@ -136,7 +136,7 @@ module Crystal
     end
 
     # Yields additional significant newlines when in a macro expression based on the difference in line number between the last token, and the next token after the statement end.
-    private def emit_additional_significant_newlines : Nil
+    private def emit_additional_significant_newlines(&) : Nil
       start_line_number = @token.line_number
 
       skip_statement_end
@@ -1606,7 +1606,7 @@ module Crystal
 
         call ||= parse_call_block_arg_after_dot(obj)
 
-        block = Block.new([Var.new(block_arg_name)], call).at(location)
+        block = Block.new([Var.new(block_arg_name)], call).at(location).at_end(token_end_location)
       else
         block_arg = parse_op_assign
       end
