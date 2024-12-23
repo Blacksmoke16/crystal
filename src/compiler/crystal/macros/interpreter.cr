@@ -662,16 +662,22 @@ module Crystal
     end
 
     def visit(node : TupleLiteral)
+      self.collect_covered_node node
+
       @last = TupleLiteral.map(node.elements) { |element| accept element }
       false
     end
 
     def visit(node : ArrayLiteral)
+      self.collect_covered_node node
+
       @last = ArrayLiteral.map(node.elements) { |element| accept element }
       false
     end
 
     def visit(node : HashLiteral)
+      self.collect_covered_node node
+
       @last =
         HashLiteral.new(node.entries.map do |entry|
           HashLiteral::Entry.new(accept(entry.key), accept(entry.value))
@@ -680,6 +686,8 @@ module Crystal
     end
 
     def visit(node : NamedTupleLiteral)
+      self.collect_covered_node node
+
       @last =
         NamedTupleLiteral.new(node.entries.map do |entry|
           NamedTupleLiteral::Entry.new(entry.key, accept(entry.value))

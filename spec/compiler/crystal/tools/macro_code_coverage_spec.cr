@@ -356,7 +356,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  assert_coverage <<-'CR', {4 => 1, 5 => 1, 7 => 1, 8 => 1}
+  assert_coverage <<-'CR', {4 => 1, 5 => 1, 7 => 1, 8 => 1, 9 => 1, 10 => 1, 11 => 1, 12 => 1}
     macro finished
       {% verbatim do %}
         {%
@@ -364,7 +364,11 @@ describe "macro_code_coverage" do
           num = 4
 
           data["foo"] = {
-            id: num,
+            var: num,
+            hash_literal: {} of Nil => Nil,
+            named_tuple_literal: {id: 10},
+            array_literal: [] of Nil,
+            tuple_literal: {1, 2, 3},
           }
         %}
       {% end %}
