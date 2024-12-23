@@ -339,4 +339,20 @@ describe "macro_code_coverage" do
       {% end %}
     end
     CR
+
+  assert_coverage <<-'CR', {4 => 1, 6 => 1, 7 => 1, 8 => 1, 9 => 1}
+    macro finished
+      {% verbatim do %}
+        {%
+          data = {__nil: nil}
+
+          data["foo"] = {
+            id: 1, active: true,
+            name: "foo".upcase,
+            pie: 3.14,
+          }
+        %}
+      {% end %}
+    end
+    CR
 end

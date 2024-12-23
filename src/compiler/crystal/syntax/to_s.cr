@@ -192,11 +192,42 @@ module Crystal
 
     def visit(node : NamedTupleLiteral)
       @str << '{'
-      node.entries.join(@str, ", ") do |entry|
+
+      last_entry = node.entries.first
+      is_multiline = false
+
+      if (node_loc = node.location) && (entry_loc = last_entry.value.location) && entry_loc.line_number > node_loc.line_number
+        is_multiline = true
+        newline
+        @indent += 1
+        append_indent
+      end
+
+      node.entries.each_with_index do |entry, idx|
+        if (current_entry_loc = entry.value.location) && (last_entry_loc = last_entry.value.location) && current_entry_loc.line_number > last_entry_loc.line_number
+          # Drop the space after the comma if moving to a new line
+          @str.pos -= 1
+          newline
+          append_indent
+        end
+
         visit_named_arg_name(entry.key)
         @str << ": "
         entry.value.accept self
+
+        last_entry = entry
+
+        @str << ", " unless idx == node.entries.size - 1
       end
+
+      # If the opening brace has a newline after it, force the trailing brace to be as well
+      if is_multiline
+        @str << ','
+        @indent -= 1
+        newline
+        append_indent
+      end
+
       @str << '}'
       false
     end
