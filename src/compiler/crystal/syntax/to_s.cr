@@ -300,6 +300,11 @@ module Crystal
       @str << ' '
       node.cond.accept self
       newline
+
+      if @emit_location_pragmas && (loc = node.then.location) && (filename = loc.filename).is_a?(String)
+        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+      end
+
       accept_with_indent(node.then)
       unless node.else.nop?
         append_indent
