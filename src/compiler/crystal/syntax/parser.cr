@@ -109,50 +109,25 @@ module Crystal
         return Nop.new
       end
 
-      exps = [] of ASTNode
-
-      emit_additional_significant_newlines do |node|
-        exps << node
-      end
-
       exp = parse_multi_assign
-      exps << exp
 
       slash_is_regex!
-
-      emit_additional_significant_newlines do |node|
-        exps << node
-      end
+      skip_statement_end
 
       if end_token?
-        return Expressions.from exps
+        return exp
       end
+
+      exps = [] of ASTNode
+      exps.push exp
 
       loop do
         exps << parse_multi_assign
-        emit_additional_significant_newlines do |node|
-          exps << node
-        end
-
+        skip_statement_end
         break if end_token?
       end
 
       Expressions.from(exps)
-    end
-
-    # Yields additional significant newlines when in a macro expression based on the difference in line number between the last token, and the next token after the statement end.
-    private def emit_additional_significant_newlines(& : MacroLiteral ->) : Nil
-      start_line_number = @token.line_number
-
-      skip_statement_end
-
-      end_line_number = @token.line_number
-
-      return unless @in_macro_expression
-
-      ((end_line_number - 1) - start_line_number).times do
-        yield MacroLiteral.new ""
-      end
     end
 
     def parse_multi_assign
@@ -4183,29 +4158,9 @@ module Crystal
 
     def parse_if_after_condition(cond, location, check_end)
       slash_is_regex!
-
-      exps = [] of ASTNode
-
-      if @in_macro_expression
-        emit_additional_significant_newlines do |node|
-          exps << node
-        end
-      else
-        skip_statement_end
-      end
+      skip_statement_end
 
       a_then = parse_expressions
-      a_then = if a_then.is_a?(Expressions)
-                 exps.each do |e|
-                   a_then.expressions.unshift e
-                 end
-
-                 a_then
-               else
-                 exps << a_then
-                 Expressions.from exps
-               end
-
       skip_statement_end
 
       else_location = nil

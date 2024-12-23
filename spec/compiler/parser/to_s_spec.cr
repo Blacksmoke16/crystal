@@ -285,7 +285,11 @@ describe "ASTNode#to_s" do
     macro finished
       {% verbatim do %}
         {%
-          10\n      \n      \n      \n      20
+          10
+
+
+
+          20
         %}
       {% end %}
     end
@@ -306,7 +310,10 @@ describe "ASTNode#to_s" do
     macro finished
       {% verbatim do %}
         {%
-          10\n      \n      \n      20
+          10
+
+
+          20
         %}
       {% end %}
     end
