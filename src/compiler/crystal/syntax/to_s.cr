@@ -717,8 +717,10 @@ module Crystal
       end
       newline
 
-      inside_macro do
-        accept node.body
+      with_indent do
+        inside_macro do
+          accept node.body
+        end
       end
 
       # newline
@@ -728,13 +730,34 @@ module Crystal
     end
 
     def visit(node : MacroExpression)
-      @str << (node.output? ? "{{" : "{% ")
-      @str << ' ' if node.output?
+      # The node is considered multiline if its starting location is on a different line than its expression.
+      is_multiline = (start_loc = node.location) && (end_loc = node.exp.location) && end_loc.line_number > start_loc.line_number
+
+      @str << (node.output? ? "{{ " : is_multiline ? "{%" : "{% ")
+
+      if is_multiline
+        newline
+        @indent += 1
+      end
+
       outside_macro do
+        # If the MacroExpression consists of a single node we need to manually handle appending indent and trailing newline if *is_multiline*
+        # Otherwise, the Expressions logic handles that for us
+        if is_multiline && !node.exp.is_a?(Expressions)
+          append_indent
+        end
+
         node.exp.accept self
       end
-      @str << ' ' if node.output?
-      @str << (node.output? ? "}}" : " %}")
+
+      # If the opening tag has a newline after it, force trailing tag to have one as well
+      if is_multiline
+        @indent -= 1
+        append_indent
+        newline if !node.exp.is_a? Expressions
+      end
+
+      @str << (node.output? ? " }}" : is_multiline ? "%}" : " %}")
       false
     end
 
@@ -790,9 +813,13 @@ module Crystal
 
     def visit(node : MacroVerbatim)
       @str << "{% verbatim do %}"
-      inside_macro do
-        node.exp.accept self
+
+      with_indent do
+        inside_macro do
+          node.exp.accept self
+        end
       end
+
       @str << "{% end %}"
       false
     end

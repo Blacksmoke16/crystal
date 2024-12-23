@@ -104,26 +104,51 @@ module Crystal
       preserve_stop_on_do { parse_expressions_internal }
     end
 
+    # Yields additional significant newlines when in a macro expression based on the difference in line number between the last token, and the next token after the statement end.
+    private def emit_additional_significant_newlines(& : MacroLiteral ->) : Nil
+      start_line_number = @token.line_number
+
+      skip_statement_end
+
+      end_line_number = @token.line_number
+
+      return unless @in_macro_expression
+
+      ((end_line_number - 1) - start_line_number).times do
+        yield MacroLiteral.new ""
+      end
+    end
+
     def parse_expressions_internal
       if end_token?
         return Nop.new
       end
 
-      exp = parse_multi_assign
+      exps = [] of ASTNode
 
-      slash_is_regex!
-      skip_statement_end
-
-      if end_token?
-        return exp
+      emit_additional_significant_newlines do |node|
+        exps << node
       end
 
-      exps = [] of ASTNode
-      exps.push exp
+      exp = parse_multi_assign
+      exps << exp
+
+      slash_is_regex!
+
+      emit_additional_significant_newlines do |node|
+        exps << node
+      end
+
+      if end_token?
+        return Expressions.from exps
+      end
 
       loop do
         exps << parse_multi_assign
-        skip_statement_end
+        emit_additional_significant_newlines do |node|
+          exps << node
+        end
+
         break if end_token?
       end
 
@@ -3431,7 +3456,7 @@ module Crystal
         next_token_skip_space
         check :OP_PERCENT_RCURLY
 
-        return MacroVerbatim.new(body).at_end(token_end_location)
+        return MacroVerbatim.new(body).at(location).at_end(token_end_location)
       else
         # will be parsed as a normal expression
       end
@@ -4158,9 +4183,28 @@ module Crystal
 
     def parse_if_after_condition(cond, location, check_end)
       slash_is_regex!
-      skip_statement_end
+      exps = [] of ASTNode
+
+      if @in_macro_expression
+        emit_additional_significant_newlines do |node|
+          exps << node
+        end
+      else
+        skip_statement_end
+      end
 
       a_then = parse_expressions
+      a_then = if a_then.is_a?(Expressions)
+                 exps.each do |e|
+                   a_then.expressions.unshift e
+                 end
+
+                 a_then
+               else
+                 exps << a_then
+                 Expressions.from exps
+               end
+
       skip_statement_end
 
       else_location = nil
@@ -4200,9 +4244,28 @@ module Crystal
 
     def parse_unless_after_condition(cond, location)
       slash_is_regex!
-      skip_statement_end
+      exps = [] of ASTNode
+
+      if @in_macro_expression
+        emit_additional_significant_newlines do |node|
+          exps << node
+        end
+      else
+        skip_statement_end
+      end
 
       a_then = parse_expressions
+      a_then = if a_then.is_a?(Expressions)
+                 exps.each do |e|
+                   a_then.expressions.unshift e
+                 end
+
+                 a_then
+               else
+                 exps << a_then
+                 Expressions.from exps
+               end
+
       skip_statement_end
 
       a_else = nil
