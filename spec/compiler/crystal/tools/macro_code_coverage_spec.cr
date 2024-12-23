@@ -355,4 +355,12 @@ describe "macro_code_coverage" do
       {% end %}
     end
     CR
+
+  assert_coverage <<-'CR', {3 => 1}
+    macro finished
+      {% verbatim do %}
+        {% [1, 2, 3].find(&.+.==(2)) %}
+      {% end %}
+    end
+    CR
 end

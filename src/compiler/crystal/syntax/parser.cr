@@ -1606,7 +1606,7 @@ module Crystal
 
         call ||= parse_call_block_arg_after_dot(obj)
 
-        block = Block.new([Var.new(block_arg_name)], call).at(location).at_end(token_end_location)
+        block = Block.new([Var.new(block_arg_name)], call).at(location)
       else
         block_arg = parse_op_assign
       end
