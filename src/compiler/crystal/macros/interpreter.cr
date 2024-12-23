@@ -117,6 +117,16 @@ module Crystal
           location.line_number + macro_location.line_number,
           location.column_number
         )
+      else
+        if self.is_test_file?
+          p({node:     node.to_s,
+             line:     location.line_number,
+             location: location,
+
+          })
+          puts ""
+          puts ""
+        end
       end
 
       @program.covered_macro_nodes << {node, location, missed}
@@ -173,6 +183,8 @@ module Crystal
     end
 
     def visit(node : Var)
+      self.collect_covered_node node
+
       var = @vars[node.name]?
       if var
         @last = var
