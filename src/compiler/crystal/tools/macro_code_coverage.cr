@@ -114,6 +114,16 @@ module Crystal
 
         if node.is_a?(Expressions)
           missed_location = node.expressions.reject(MacroLiteral).first?.try(&.location) || location
+
+          # Because *missed_location* isn't handled via the macro interpreter directly, we need to apply the same VirtualFile check here,
+          # using the same `missed_location.line_number + macro_location.line_number` logic to calculate the proper line number.
+          if missed_location.filename.is_a?(VirtualFile) && (macro_location = missed_location.macro_location)
+            missed_location = Location.new(
+              location.filename,
+              missed_location.line_number + macro_location.line_number,
+              missed_location.column_number
+            )
+          end
         else
           missed_location = Location.new(
             location.filename,

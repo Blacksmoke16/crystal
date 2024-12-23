@@ -378,4 +378,14 @@ describe "macro_code_coverage" do
       {% end %}
     end
     CR
+
+  assert_coverage <<-'CR', {3 => 1, 4 => 0}
+    macro finished
+      {% verbatim do %}
+        {% if false %}
+          {% raise "Oh noes" %}
+        {% end %}
+      {% end %}
+    end
+    CR
 end
