@@ -269,7 +269,7 @@ describe "ASTNode#to_s" do
   expect_to_s "{%\n  a = 1 %}", "{%\n  a = 1\n%}"
   expect_to_s "{% a = 1\n%}", "{% a = 1 %}"
 
-  expect_to_s <<-'CR', <<-CR
+  expect_to_s <<-'CR', <<-'CR'
     macro finished
       {% verbatim do %}
         {%
@@ -295,7 +295,7 @@ describe "ASTNode#to_s" do
     end
     CR
 
-  expect_to_s <<-'CR', <<-CR
+  expect_to_s <<-'CR', <<-'CR'
     macro finished
       {% verbatim do %}
         {%
@@ -314,6 +314,50 @@ describe "ASTNode#to_s" do
 
 
           20
+        %}
+      {% end %}
+    end
+    CR
+
+  expect_to_s <<-'CR', <<-'CR'
+    macro finished
+      {% verbatim do %}
+        {%
+          10
+
+          # Foo
+
+          20
+          30
+
+          # Bar
+
+          40
+        %}
+        {%
+          50
+          60
+        %}
+      {% end %}
+    end
+    CR
+    macro finished
+      {% verbatim do %}
+        {%
+          10
+
+
+
+          20
+          30
+
+
+
+          40
+        %}
+        {%
+          50
+          60
         %}
       {% end %}
     end
@@ -325,6 +369,16 @@ describe "ASTNode#to_s" do
         {%
           10
           20
+        %}
+      {% end %}
+    end
+    CR
+
+  expect_to_s <<-'CR'
+    macro finished
+      {% verbatim do %}
+        {%
+          10
         %}
       {% end %}
     end

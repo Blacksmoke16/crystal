@@ -297,7 +297,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  assert_coverage <<-'CR', {4 => 1, 8 => 1, 9 => 1, 13 => 1, 16 => 1, 17 => 1}
+  assert_coverage <<-'CR', {4 => 1, 8 => 1, 9 => 1, 13 => 1, 16 => 1, 17 => 1, 22 => 1}
     macro finished
       {% verbatim do %}
         {%
@@ -315,6 +315,11 @@ describe "macro_code_coverage" do
         {%
           50
           60
+        %}
+
+
+        {%
+          70
         %}
       {% end %}
     end
