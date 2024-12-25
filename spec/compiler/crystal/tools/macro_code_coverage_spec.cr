@@ -6,26 +6,19 @@ private def assert_coverage(code, expected_coverage, *, focus : Bool = false, sp
     compiler = Compiler.new true
     compiler.prelude = "empty"
     compiler.no_codegen = true
-
-    tempfile = File.tempfile("macro_code_coverage", ".cr") do |file|
-      file.puts code
-    end
-
-    result = compiler.compile(Compiler::Source.new(tempfile.path, code), "fake-no-build")
+    result = compiler.compile(Compiler::Source.new(".", code), "fake-no-build")
 
     processor = MacroCoverageProcessor.new
     processor.excludes << Path[Dir.current].to_posix.to_s
-    processor.includes << tempfile.path
+    processor.includes << "."
 
     hits = processor.compute_coverage(result)
 
-    unless hits = hits[Path.new(tempfile.path).relative_to(Dir.current).to_s]?
+    unless hits = hits["."]?
       fail "Failed to generate coverage", file: spec_file, line: spec_line
     end
 
     hits.should eq(expected_coverage), file: spec_file, line: spec_line
-  ensure
-    tempfile.try &.delete
   end
 end
 

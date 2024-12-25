@@ -101,32 +101,11 @@ module Crystal
       unless (filename = location.filename).is_a? String
         return node unless macro_location = location.macro_location
 
-        # if self.is_test_file?
-        #   p({node:           node.to_s,
-        #      line:           location.line_number + macro_location.line_number,
-        #      location:       location,
-        #      macro_location: macro_location,
-
-        #   })
-        #   puts ""
-        #   puts ""
-        # end
-
         location = Location.new(
           macro_location.filename,
           location.line_number + macro_location.line_number,
           location.column_number
         )
-      else
-        # if self.is_test_file?
-        #   p({node:     node.to_s,
-        #      line:     location.line_number,
-        #      location: location,
-
-        #   })
-        #   puts ""
-        #   puts ""
-        # end
       end
 
       @program.covered_macro_nodes << {node, location, missed}

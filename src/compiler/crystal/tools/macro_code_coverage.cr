@@ -32,9 +32,26 @@ module Crystal
 
       self.compute_coverage result
 
-      # pp! @conditional_hit_cache
+      # Due to their compiled nature, testing of custom macro logic that raises must be done in its own process.
+      # As such, it is reasonable to expect an application to have quite a few of those to ensure full coverage.
+      #
+      # Because of this, allow providing an ENV var once to denote the output directory where the tool should output the reports to,
+      # globally for all calls to this tool when running `crystal spec`.
+      #
+      # TODO: Other option would be add a like `--report-filename` option and move responsibility to the caller, which would also be reasonable.
+      unless output_dir = ENV["CRYSTAL_MACRO_CODE_COVERAGE_OUTPUT_DIR"]?
+        return self.write_output STDOUT
+      end
 
-      JSON.build STDOUT do |builder|
+      File.open ::Path[output_dir, "macro_code_coverage.#{Time.utc.to_unix}.json"], "w" do |file|
+        self.write_output file
+        file.puts
+      end
+    end
+
+    # See https://docs.codecov.com/docs/codecov-custom-coverage-format
+    private def write_output(io : IO) : Nil
+      JSON.build io, indent: "  " do |builder|
         builder.object do
           builder.string "coverage"
           builder.object do
@@ -52,6 +69,11 @@ module Crystal
       end
     end
 
+    # First filters the nodes to only those with locations we care about.
+    # The nodes are then chunked by line number, essentially grouping them.
+    # Each group is then processed to determine if that line is a hit or miss, but may also yield more than once, such as to mark an `If` conditional as a hit, but it's `else` block as a miss.
+    #
+    # The coverage information is stored in a similar way as the resulting output report: https://docs.codecov.com/docs/codecov-custom-coverage-format.
     def compute_coverage(result : Compiler::Result)
       result.program.collected_covered_macro_nodes
         .select { |nodes| nodes.any? { |(_, location, _)| match_path? location.filename.as(String) } }
@@ -75,23 +97,12 @@ module Crystal
                                                                  end
               end
             end
-          # puts ""
-          # puts "-" * 10
-          # puts ""
         end
 
       @hits
     end
 
     private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool}), & : {Int32, Location, Int32?} ->) : Nil
-      # pp! line
-
-      # nodes.each do |(node, location, missed)|
-      #   p!({node.to_s.gsub("\n", ""), node.class, location, missed})
-      # end
-
-      # puts ""
-
       node, location, missed = nodes.first
 
       # If no nodes on this line were missed, we can be assured it was a hit
@@ -101,21 +112,25 @@ module Crystal
       end
 
       if (conditional_node = nodes.find(&.[0].is_a?(If | Unless))) && (node = conditional_node[0]).is_a?(If | Unless) && (branches = self.condtional_statement_branches(node)) > 1
-        # Keep track of what specific conditional branches were hit and missed as to enure a proper count
+        # Keep track of what specific conditional branches were hit and missed as to enure a proper partial count
         newly_hit = @conditional_hit_cache[location.filename][location.line_number].add? nodes.reverse.find(nodes.last) { |(_, _, missed)| missed }[0]
 
         yield({newly_hit ? 1 : 0, location, branches})
         return
       end
 
-      # Workaround https://github.com/crystal-lang/crystal/issues/14884#issuecomment-2423332237
+      # If a MacroIf node is missed, we want to mark the start (conditional) of the MacroIf as hit, but the body as missed.
+      #
+      # However if the body of the conditional is an Expressions, we need to work around https://github.com/crystal-lang/crystal/issues/14884#issuecomment-2423904262.
+      # The incorrect line number is a result of the first node of the expressions being a `MacroLiteral` consisting of a newline and some whitespace.
+      # We instead want to use the location of the first non-MacroLiteral node which would be the location of the actual body.
       if node.is_a?(MacroIf) && nodes.last[2]
         node, missed_location, _ = nodes.last
 
         if node.is_a?(Expressions)
           missed_location = node.expressions.reject(MacroLiteral).first?.try(&.location) || location
 
-          # Because *missed_location* isn't handled via the macro interpreter directly, we need to apply the same VirtualFile check here,
+          # Because *missed_location* may not be handled via the macro interpreter directly, we need to apply the same VirtualFile check here,
           # using the same `missed_location.line_number + macro_location.line_number` logic to calculate the proper line number.
           if missed_location.filename.is_a?(VirtualFile) && (macro_location = missed_location.macro_location)
             missed_location = Location.new(
@@ -124,12 +139,6 @@ module Crystal
               missed_location.column_number
             )
           end
-        else
-          missed_location = Location.new(
-            location.filename,
-            location.line_number + 1,
-            location.column_number
-          )
         end
 
         yield({1, location, nil})
