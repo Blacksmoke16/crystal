@@ -1178,9 +1178,8 @@ module Crystal
         @str << '|'
       end
 
-      @str << ' ' if single_line_block
-
       if single_line_block
+        @str << ' '
         node.body.accept self
       else
         newline
