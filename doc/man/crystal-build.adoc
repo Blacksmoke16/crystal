@@ -75,7 +75,7 @@ Specify prelude to use. The default one initializes the garbage
 collector. You can also use --prelude=empty to use no preludes.
 This can be useful for checking code generation for a specific
 source code file.
-*-O* _LEVEL_::  Optimization mode: 0 (default), 1, 2, 3. See *OPTIMIZATIONS* for
+*-O* _LEVEL_::  Optimization mode: 0 (default), 1, 2, 3, s, z. See *OPTIMIZATIONS* for
 details.
 *--release*::
 Compile in release mode. Equivalent to *-O3 --single-module*
