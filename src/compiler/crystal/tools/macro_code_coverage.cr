@@ -97,12 +97,22 @@ module Crystal
                                                                  end
               end
             end
+          # puts ""
+          # puts "-" * 10
+          # puts ""
         end
 
       @hits
     end
 
+    # ameba:disable Metrics/CyclomaticComplexity
     private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool}), & : {Int32, Location, Int32?} ->) : Nil
+      # nodes.each do |(node, location, missed)|
+      #   p({node: node.to_s.gsub("\n", ""), class: node.class, location: location, missed: missed})
+      # end
+
+      # puts ""
+
       node, location, missed = nodes.first
 
       # If no nodes on this line were missed, we can be assured it was a hit
@@ -111,7 +121,7 @@ module Crystal
         return
       end
 
-      if (conditional_node = nodes.find(&.[0].is_a?(If | Unless))) && (node = conditional_node[0]).is_a?(If | Unless) && (branches = self.condtional_statement_branches(node)) > 1
+      if (conditional_node = nodes.find(&.[0].is_a?(If | Unless))) && (node = conditional_node[0]).is_a?(If | Unless) && (branches = self.conditional_statement_branches(node)) > 1
         # Keep track of what specific conditional branches were hit and missed as to enure a proper partial count
         newly_hit = @conditional_hit_cache[location.filename][location.line_number].add? nodes.reverse.find(nodes.last) { |(_, _, missed)| missed }[0]
 
@@ -128,7 +138,7 @@ module Crystal
         node, missed_location, _ = nodes.last
 
         if node.is_a?(Expressions)
-          missed_location = node.expressions.reject(MacroLiteral).first?.try(&.location) || location
+          missed_location = self.find_first_significant_node(node).try(&.location) || location
 
           # Because *missed_location* may not be handled via the macro interpreter directly, we need to apply the same VirtualFile check here,
           # using the same `missed_location.line_number + macro_location.line_number` logic to calculate the proper line number.
@@ -147,7 +157,7 @@ module Crystal
       elsif node.is_a?(Expressions) && missed && nodes.size == 1
         yield({0, location, nil})
 
-        if loc = node.expressions.reject(MacroLiteral).first?.try(&.location)
+        if loc = self.find_first_significant_node(node).try(&.location)
           yield({0, loc, nil})
         end
 
@@ -163,17 +173,17 @@ module Crystal
     # true ? 1 : 0             # => 2
     # true ? 1 : false ? 2 : 3 # => 3
     # ```
-    private def condtional_statement_branches(node : If) : Int32
+    private def conditional_statement_branches(node : If) : Int32
       return 1 unless node.ternary?
 
       then_depth = case n = node.then
-                   when If then self.condtional_statement_branches n
+                   when If then self.conditional_statement_branches n
                    else
                      1
                    end
 
       else_depth = case n = node.else
-                   when If then self.condtional_statement_branches n
+                   when If then self.conditional_statement_branches n
                    else
                      1
                    end
@@ -182,7 +192,7 @@ module Crystal
     end
 
     # Unless statements cannot be nested more than 1 level on a single line.
-    private def condtional_statement_branches(node : Unless) : Int32
+    private def conditional_statement_branches(node : Unless) : Int32
       1
     end
 
@@ -202,6 +212,27 @@ module Crystal
 
     private def match_any_pattern?(patterns, paths)
       patterns.any? { |pattern| paths.any? { |path| path == pattern || File.match?(pattern, path.to_posix) } }
+    end
+
+    # These overloads try to find a more significant node to mark as missed.
+    # This ensures the missed value in the report maps to an actual node
+    # instead of just `{%` in the context of a multi-line `MacroExpression`,
+    # or just some whitespace as part of a `MacroLiteral`.
+
+    private def find_first_significant_node(node : MacroExpression) : ASTNode
+      self.find_first_significant_node node.exp
+    end
+
+    private def find_first_significant_node(node : Expressions) : ASTNode
+      if n = node.expressions.reject(MacroLiteral).first?
+        return self.find_first_significant_node n
+      end
+
+      node
+    end
+
+    private def find_first_significant_node(node : _) : ASTNode
+      node
     end
   end
 end

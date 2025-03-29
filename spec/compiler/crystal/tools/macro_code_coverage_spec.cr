@@ -180,7 +180,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 3, 4 => 1, 3 => 3, 5 => 3, 6 => 0, 7 => 2, 8 => 2}
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 3, 4 => 1, 5 => 3, 6 => 0, 7 => 2, 8 => 2}
     {% begin %}
       {% for v in {1, 2, 3} %}
         {% if v == 2 %}
@@ -423,5 +423,53 @@ describe "macro_code_coverage" do
         %}
       {% end %}
     end
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 4 => 0}
+    macro test(v)
+      {% if v > 1 %}
+        {%
+          pp v.stringify
+        %}
+      {% end %}
+    end
+
+    test 1
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 4 => 0}
+    macro test(v)
+      {% if v > 1 %}
+        {%
+          val = v.stringify
+
+          pp val
+        %}
+      {% end %}
+    end
+
+    test 1
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 4 => 1, 6 => 1, 9 => 1, 10 => 1, 11 => 0, 13 => 0}
+    macro test(v)
+      {% if v > 1 %}
+        {%
+          val = v.stringify
+
+          val = "foo"
+        %}
+
+        {% if v == 2 %}
+          {{v}}
+        {% else %}
+          {%
+            pp v * 2
+          %}
+        {% end %}
+      {% end %}
+    end
+
+    test 2
     CR
 end

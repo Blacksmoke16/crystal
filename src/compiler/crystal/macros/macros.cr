@@ -24,19 +24,7 @@ class Crystal::Program
 
     interpreter = MacroInterpreter.new self, scope, path_lookup || scope, a_macro, call, a_def, in_macro: true
     a_macro.body.accept interpreter
-
-    output_str = interpreter.to_s
-
-    if interpreter.is_test_file?
-      puts
-      puts
-
-      puts output_str
-
-      puts
-      puts
-    end
-    {output_str, interpreter.macro_expansion_pragmas}
+    {interpreter.to_s, interpreter.macro_expansion_pragmas}
   ensure
     self.flush_collected_nodes
   end
@@ -45,19 +33,7 @@ class Crystal::Program
     interpreter = MacroInterpreter.new self, scope, path_lookup || scope, node.location, def: a_def, in_macro: false
     interpreter.free_vars = free_vars
     node.accept interpreter
-
-    output_str = interpreter.to_s
-
-    if interpreter.is_test_file?
-      puts
-      puts
-
-      puts output_str
-
-      puts
-      puts
-    end
-    {output_str, interpreter.macro_expansion_pragmas}
+    {interpreter.to_s, interpreter.macro_expansion_pragmas}
   ensure
     self.flush_collected_nodes
   end

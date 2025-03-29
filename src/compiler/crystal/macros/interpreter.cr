@@ -98,7 +98,7 @@ module Crystal
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
 
-      unless (filename = location.filename).is_a? String
+      unless location.filename.is_a? String
         return node unless macro_location = location.macro_location
 
         location = Location.new(
