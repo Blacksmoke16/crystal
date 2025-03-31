@@ -154,6 +154,14 @@ describe "macro_code_coverage" do
     {% end %}
     CR
 
+  assert_coverage <<-'CR', {2 => 1, 4 => 1}
+    {%
+      a, b, c = {1, 2, 3}
+
+      a + b + c
+    %}
+    CR
+
   assert_coverage <<-'CR', {2 => 2, 6 => 1, 10 => 1}
     macro test(&)
       {{yield}}
@@ -494,6 +502,15 @@ describe "macro_code_coverage" do
   assert_coverage <<-'CR', {2 => 1, 3 => 0}
     {%
       ([] of Nil).each do |v|
+        pp v
+        pp 123
+      end
+    %}
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 3 => 0}
+    {%
+      ([] of Nil).each do |(a, b, c)|
         pp v
         pp 123
       end

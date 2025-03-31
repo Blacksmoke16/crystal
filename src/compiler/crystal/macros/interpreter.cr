@@ -128,7 +128,7 @@ module Crystal
     end
 
     private def find_first_significant_node(node : Expressions) : ASTNode
-      if n = node.expressions.reject(MacroLiteral).first?
+      if n = node.expressions.reject(MacroLiteral).reject(MultiAssign).first?
         return self.find_first_significant_node n
       end
 
