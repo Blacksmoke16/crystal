@@ -805,7 +805,6 @@ module Crystal
           accept node.body
         end
       end
-      @indent -= 1
 
       # newline
       append_indent
