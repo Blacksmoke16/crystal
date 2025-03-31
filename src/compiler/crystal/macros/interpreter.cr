@@ -94,9 +94,14 @@ module Crystal
       @program.collect_covered_macro_nodes?
     end
 
-    def collect_covered_node(node : ASTNode, missed : Bool = false) : ASTNode
+    def collect_covered_node(node : ASTNode, missed : Bool = false, find_significant : Bool = false) : ASTNode
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
+
+      if find_significant
+        node = self.find_first_significant_node node
+        location = node.try(&.location) || location
+      end
 
       unless location.filename.is_a? String
         return node unless macro_location = location.macro_location
@@ -110,6 +115,27 @@ module Crystal
 
       @program.covered_macro_nodes << {node, location, missed}
 
+      node
+    end
+
+    # These overloads try to find a more significant node to mark as missed.
+    # This ensures the missed value in the report maps to an actual node
+    # instead of just `{%` in the context of a multi-line `MacroExpression`,
+    # or just some whitespace as part of a `MacroLiteral`.
+
+    private def find_first_significant_node(node : MacroExpression) : ASTNode
+      self.find_first_significant_node node.exp
+    end
+
+    private def find_first_significant_node(node : Expressions) : ASTNode
+      if n = node.expressions.reject(MacroLiteral).first?
+        return self.find_first_significant_node n
+      end
+
+      node
+    end
+
+    private def find_first_significant_node(node : _) : ASTNode
       node
     end
 
@@ -258,6 +284,10 @@ module Crystal
         element_var = node.vars[0]
         index_var = node.vars[1]?
 
+        if range.empty?
+          self.collect_covered_node node.body, true, true
+        end
+
         range.each_with_index do |element, index|
           @vars[element_var.name] = NumberLiteral.new(element)
           if index_var
@@ -298,6 +328,10 @@ module Crystal
       element_var = node.vars[0]
       index_var = node.vars[1]?
 
+      if entries.empty?
+        self.collect_covered_node node.body, true, true
+      end
+
       entries.each_with_index do |element, index|
         @vars[element_var.name] = yield element
         if index_var
@@ -314,6 +348,10 @@ module Crystal
       key_var = node.vars[0]
       value_var = node.vars[1]?
       index_var = node.vars[2]?
+
+      if entries.empty?
+        self.collect_covered_node node.body, true, true
+      end
 
       entries.each_with_index do |entry, i|
         key, value = yield entry, value_var

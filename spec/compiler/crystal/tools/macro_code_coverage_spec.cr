@@ -472,4 +472,66 @@ describe "macro_code_coverage" do
 
     test 2
     CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => 0}
+    {% for val in [] of Nil %}
+      {% pp 1 %}
+    {% end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => 0}
+    {% for val in {} of Nil => Nil %}
+      {% pp 1 %}
+    {% end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => 1, 2 => 0}
+    {% for val in (0...0) %}
+      {% pp 1 %}
+    {% end %}
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 3 => 0}
+    {%
+      ([] of Nil).each do |v|
+        pp v
+        pp 123
+      end
+    %}
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 3 => 0}
+    {%
+      ({} of Nil => Nil).each do |v|
+        pp v
+        pp 123
+      end
+    %}
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 3 => 0}
+    {%
+      (0...0).each do |v|
+        pp v
+        pp 123
+      end
+    %}
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 3 => 0}
+    {%
+      ([] of Nil).map do |v|
+        pp v
+        pp 123
+      end
+    %}
+    CR
+
+  assert_coverage <<-'CR', {2 => 1, 3 => 0}
+    {%
+      ([] of Nil).find do |v|
+        v > 1
+      end
+    %}
+    CR
 end
