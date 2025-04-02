@@ -176,7 +176,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  assert_coverage <<-'CR', {2 => 1, 3 => 0, 4 => 1}
+  assert_coverage <<-'CR', {2 => 2, 3 => 0, 4 => 2, 8 => 0, 13 => 0}
     macro test(&)
       {{ 1 + 1 }}
       {{yield if false}}
@@ -185,6 +185,12 @@ describe "macro_code_coverage" do
 
     test do
       {{2 + 1}}
+      {{1 + 2}}
+    end
+
+    test do
+      {{4 + 5}}
+      {{5 + 4}}
     end
     CR
 
