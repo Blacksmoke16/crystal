@@ -194,7 +194,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 3, 4 => 1, 5 => 3, 6 => 0, 7 => 2, 8 => 2}
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 3, 4 => 1, 5 => 2, 6 => 0, 7 => 2, 8 => 2}
     {% begin %}
       {% for v in {1, 2, 3} %}
         {% if v == 2 %}

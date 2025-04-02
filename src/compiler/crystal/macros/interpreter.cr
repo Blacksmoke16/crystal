@@ -98,6 +98,8 @@ module Crystal
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
 
+      original_node = node
+
       if find_significant
         node = self.find_first_significant_node node
         location = node.try(&.location) || location
@@ -118,6 +120,12 @@ module Crystal
       # If a Yield was missed, also mark the code that would have ran as missed.
       if node.is_a?(Yield) && missed && (block = @block)
         self.collect_covered_node block.body, true
+      end
+
+      # Still mark the original node as missed even if a more significant one was found.
+      # This is primarly to ensure the `{% else %}` line is also marked as missed instead of just the first node of that branch.
+      if find_significant
+        self.collect_covered_node original_node, missed
       end
 
       node
@@ -242,18 +250,18 @@ module Crystal
       body = if @last.truthy?
                if node.is_unless?
                  self.collect_covered_node node.then
-                 self.collect_covered_node node.else, true
+                 self.collect_covered_node node.else, true, true
                else
-                 self.collect_covered_node node.else, true
+                 self.collect_covered_node node.else, true, true
                  node.then
                end
                node.then
              else
                if node.is_unless?
                  self.collect_covered_node node.else
-                 self.collect_covered_node node.then, true
+                 self.collect_covered_node node.then, true, true
                else
-                 self.collect_covered_node node.then, true
+                 self.collect_covered_node node.then, true, true
                  self.collect_covered_node node.else
                end
                node.else

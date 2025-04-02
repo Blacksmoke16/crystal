@@ -129,32 +129,7 @@ module Crystal
         return
       end
 
-      # If a MacroIf node is missed, we want to mark the start (conditional) of the MacroIf as hit, but the body as missed.
-      #
-      # However if the body of the conditional is an Expressions, we need to work around https://github.com/crystal-lang/crystal/issues/14884#issuecomment-2423904262.
-      # The incorrect line number is a result of the first node of the expressions being a `MacroLiteral` consisting of a newline and some whitespace.
-      # We instead want to use the location of the first non-MacroLiteral node which would be the location of the actual body.
-      if node.is_a?(MacroIf) && nodes.last[2]
-        node, missed_location, _ = nodes.last
-
-        if node.is_a?(Expressions)
-          missed_location = self.find_first_significant_node(node).try(&.location) || location
-
-          # Because *missed_location* may not be handled via the macro interpreter directly, we need to apply the same VirtualFile check here,
-          # using the same `missed_location.line_number + macro_location.line_number` logic to calculate the proper line number.
-          if missed_location.filename.is_a?(VirtualFile) && (macro_location = missed_location.macro_location)
-            missed_location = Location.new(
-              location.filename,
-              missed_location.line_number + macro_location.line_number,
-              missed_location.column_number
-            )
-          end
-        end
-
-        yield({1, location, nil})
-        yield({0, missed_location, nil})
-        return
-      elsif node.is_a?(Expressions) && missed && nodes.size == 1
+      if node.is_a?(Expressions) && missed && nodes.size == 1
         yield({0, location, nil})
 
         if loc = self.find_first_significant_node(node).try(&.location)
