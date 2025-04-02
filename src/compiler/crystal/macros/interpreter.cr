@@ -98,6 +98,11 @@ module Crystal
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
 
+      # If a Yield was missed, also mark the code that would have ran as missed.
+      if node.is_a?(Yield) && missed && (block = @block)
+        self.collect_covered_node block, true, true
+      end
+
       if find_significant
         node = self.find_first_significant_node node
         location = node.try(&.location) || location
