@@ -22,7 +22,7 @@ module Crystal
     private CURRENT_DIR = Dir.current
 
     @hits = Hash(String, Hash(Int32, Int32 | String)).new { |hash, key| hash[key] = Hash(Int32, Int32 | String).new(0) }
-    @conditional_hit_cache = Hash(String, Hash(Int32, Set(ASTNode))).new { |hash, key| hash[key] = Hash(Int32, Set(ASTNode)).new { |h, k| h[k] = Set(ASTNode).new } }
+    @conditional_hit_cache = Hash(String, Hash(Int32, Set({ASTNode, Bool}))).new { |hash, key| hash[key] = Hash(Int32, Set({ASTNode, Bool})).new { |h, k| h[k] = Set({ASTNode, Bool}).new } }
 
     property includes = [] of String
     property excludes = [] of String
@@ -102,10 +102,11 @@ module Crystal
           # puts ""
         end
 
+      # pp @conditional_hit_cache
+
       @hits
     end
 
-    # ameba:disable Metrics/CyclomaticComplexity
     private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool}), & : {Int32, Location, Int32?} ->) : Nil
       # nodes.each do |(node, location, missed)|
       #   p({node: node.to_s.gsub("\n", ""), class: node.class, location: location, missed: missed})
@@ -115,60 +116,48 @@ module Crystal
 
       node, location, missed = nodes.first
 
+      # Check for conditional hits first so that suffix conditionals are still treated as `1/2`.
+      if (conditional_node = nodes.find(&.[0].is_a?(If | Unless | MacroIf))) && (node = conditional_node[0]).is_a?(If | Unless | MacroIf) && (branches = self.conditional_statement_branches(node)) > 1
+        # Keep track of what specific conditional branches were hit and missed as to enure a proper partial count
+        # p(node: node, location: location)
+        newly_hit = @conditional_hit_cache[location.filename][location.line_number].add?({nodes.last[0], nodes.last[2]})
+
+        yield({newly_hit ? 1 : 0, location, branches})
+        return
+      end
+
       # If no nodes on this line were missed, we can be assured it was a hit
       if nodes.none? { |(_, _, missed)| missed }
         yield({1, location, nil})
         return
       end
 
-      if (conditional_node = nodes.find(&.[0].is_a?(If | Unless))) && (node = conditional_node[0]).is_a?(If | Unless) && (branches = self.conditional_statement_branches(node)) > 1
-        # Keep track of what specific conditional branches were hit and missed as to enure a proper partial count
-        newly_hit = @conditional_hit_cache[location.filename][location.line_number].add? nodes.reverse.find(nodes.last) { |(_, _, missed)| missed }[0]
-
-        yield({newly_hit ? 1 : 0, location, branches})
-        return
-      end
-
-      if node.is_a?(Expressions) && missed && nodes.size == 1
-        yield({0, location, nil})
-
-        if loc = self.find_first_significant_node(node).try(&.location)
-          yield({0, loc, nil})
-        end
-
-        return
-      end
-
       yield({0, location, nil})
     end
 
-    # Returns how many unique branches this `If` statement consist of on a single line, assuming `1` if it's not a ternary.
-    #
-    # ```
-    # true ? 1 : 0             # => 2
-    # true ? 1 : false ? 2 : 3 # => 3
-    # ```
-    private def conditional_statement_branches(node : If) : Int32
-      return 1 unless node.ternary?
+    # Returns how many unique values a conditional statement could return on a single line.
+    private def conditional_statement_branches(node : If | Unless | MacroIf) : Int32
+      return 1 unless start_location = node.location
+      return 1 unless end_location = node.end_location
+      return 1 if end_location.line_number > start_location.line_number
 
+      self.conditional_if_statement_branches node
+    end
+
+    private def conditional_if_statement_branches(node : MacroIf | If | Unless) : Int32
       then_depth = case n = node.then
-                   when If then self.conditional_statement_branches n
+                   when MacroIf, If, Unless then self.conditional_if_statement_branches n
                    else
                      1
                    end
 
       else_depth = case n = node.else
-                   when If then self.conditional_statement_branches n
+                   when MacroIf, If, Unless then self.conditional_if_statement_branches n
                    else
                      1
                    end
 
       then_depth + else_depth
-    end
-
-    # Unless statements cannot be nested more than 1 level on a single line.
-    private def conditional_statement_branches(node : Unless) : Int32
-      1
     end
 
     private def normalize_location(location : Location) : Location
@@ -187,27 +176,6 @@ module Crystal
 
     private def match_any_pattern?(patterns, paths)
       patterns.any? { |pattern| paths.any? { |path| path == pattern || File.match?(pattern, path.to_posix) } }
-    end
-
-    # These overloads try to find a more significant node to mark as missed.
-    # This ensures the missed value in the report maps to an actual node
-    # instead of just `{%` in the context of a multi-line `MacroExpression`,
-    # or just some whitespace as part of a `MacroLiteral`.
-
-    private def find_first_significant_node(node : MacroExpression) : ASTNode
-      self.find_first_significant_node node.exp
-    end
-
-    private def find_first_significant_node(node : Expressions) : ASTNode
-      if n = node.expressions.reject(MacroLiteral).first?
-        return self.find_first_significant_node n
-      end
-
-      node
-    end
-
-    private def find_first_significant_node(node : _) : ASTNode
-      node
     end
   end
 end

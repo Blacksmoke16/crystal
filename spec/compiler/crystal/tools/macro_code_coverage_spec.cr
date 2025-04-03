@@ -105,37 +105,81 @@ describe "macro_code_coverage" do
     {% end %}
     CR
 
-  # assert_coverage <<-'CR', {1 => "1/2"}
-  # {% if true %}1{% else %}0{% end %}
-  # CR
+  assert_coverage <<-'CR', {1 => "1/2"}
+    {% if true %}1{% else %}0{% end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => "1/3"}
+    {% if false %}1{% elsif false %}2{% else %}3{% end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => "1/6"}
+    {% if false %}{% if false %}1{% else %}2{% end %}{% elsif false %}3{% else %}{% if false %}4{% elsif false %}5{% else %}6{% end %}{% end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => "1/6"}
+    {% if false; if false; 1; else 2; end; elsif false; 3; else; if false; 4; elsif false; 5; else 6; end; end %}
+    CR
+
+  assert_coverage <<-'CR', {1 => "1/5"}
+    {% unless false; if false; 1; else 2; end; else; if false; 4; elsif false; 5; else 6; end; end %}
+    CR
 
   assert_coverage <<-'CR', {1 => 1}
     {% raise "foo" %}
     {{ 2 }}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 0, 3 => 1}
+  assert_coverage <<-'CR', {1 => 1, 2 => "1/2", 3 => 1}
     {% 1 %}
     {% 2 if false %}
     {% 3 %}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 1}
+  assert_coverage <<-'CR', {1 => 1, 2 => "1/2", 3 => 1}
     {% 1 %}
     {% 2 if true %}
     {% 3 %}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 0, 3 => 1}
+  assert_coverage <<-'CR', {1 => 1, 2 => "1/2", 3 => 1}
     {% 1 %}
     {% 2 unless true %}
     {% 3 %}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 1, 3 => 1}
+  assert_coverage <<-'CR', {1 => 1, 2 => "1/2", 3 => 1}
     {% 1 %}
     {% 2 unless false %}
     {% 3 %}
+    CR
+
+  assert_coverage <<-'CR', {2 => "1/2"}
+    macro test(v)
+      {{3 if v == 1}}
+    end
+
+    test 0
+    test 2
+    CR
+
+  assert_coverage <<-'CR', {2 => "2/2"}
+    macro test(v)
+      {{3 if v == 1}}
+    end
+
+    test 2
+    test 1
+    CR
+
+  assert_coverage <<-'CR', {2 => "2/2"}
+    macro test(v)
+      {{3 if v == 1}}
+    end
+
+    test 1
+    test 2
+    test 1
     CR
 
   assert_coverage <<-'CR', {1 => 1, 2 => 0, 3 => 1, 4 => 1}
@@ -176,7 +220,7 @@ describe "macro_code_coverage" do
     end
     CR
 
-  assert_coverage <<-'CR', {2 => 2, 3 => 0, 4 => 2, 8 => 0, 13 => 0}
+  assert_coverage <<-'CR', {2 => 2, 3 => "1/2", 4 => 2, 8 => 0, 13 => 0}
     macro test(&)
       {{ 1 + 1 }}
       {{yield if false}}
@@ -220,7 +264,7 @@ describe "macro_code_coverage" do
     {% end %}
     CR
 
-  assert_coverage <<-'CR', {1 => 1, 2 => 1, 4 => 0, 5 => 2, 7 => 2}
+  assert_coverage <<-'CR', {1 => 1, 2 => 1, 4 => "1/2", 5 => 2, 7 => 2}
     {% begin %}
       {% for v in [1, 2] %}
         {%

@@ -100,6 +100,7 @@ module Crystal
 
       original_node = node
 
+      # For missed nodes, try to find a more significant node to use for a more accurate location.
       if find_significant
         node = self.find_first_significant_node node
         location = node.try(&.location) || location
@@ -122,8 +123,9 @@ module Crystal
         self.collect_covered_node block.body, true
       end
 
-      # Still mark the original node as missed even if a more significant one was found.
-      # This is primarly to ensure the `{% else %}` line is also marked as missed instead of just the first node of that branch.
+      # Also mark this original missed node as missed.
+      # This is primarily to ensure the `{% else %}` line is also marked as missed instead of just the first node of that branch.
+      # Do this after collecting the more accurate one to ensure that one is used as the primary.
       if find_significant
         self.collect_covered_node original_node, missed
       end
