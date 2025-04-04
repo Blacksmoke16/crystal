@@ -282,19 +282,48 @@ module Crystal
       visit_if_or_unless "unless", node
     end
 
+    # ameba:disable Metrics/CyclomaticComplexity
     def visit_if_or_unless(prefix, node)
+      # An `If` or `Unless` is considered multiline if its ending location is on a different line than its starting location,
+      # AND neither of its body nodes are an `Expressions` in order to prevent the case where the body is multiline but the conditional itself is not.
+      is_multiline = ((start_loc = node.location) && (end_loc = node.end_location) && end_loc.line_number > start_loc.line_number) ||
+                     node.then.is_a?(Expressions) ||
+                     node.else.is_a?(Expressions)
+
+      # If a node is on a single line and does not have an else node, write it in suffix notation.
+      # Otherwise, write out the long form.
+      if !is_multiline && node.else.is_a? Nop
+        node.then.accept self
+        @str << ' ' << prefix << ' '
+        node.cond.accept self
+        return false
+      end
+
       @str << prefix
       @str << ' '
+
       node.cond.accept self
-      newline
-      accept_with_indent(node.then)
-      unless node.else.nop?
-        append_indent
-        @str << "else"
-        newline
-        accept_with_indent(node.else)
+      is_multiline ? newline : @str << "; "
+
+      if is_multiline
+        accept_with_indent(node.then)
+      else
+        node.then.accept self
       end
-      append_indent
+
+      unless node.else.nop?
+        is_multiline ? append_indent : @str << "; "
+        @str << "else"
+
+        if is_multiline
+          newline
+          accept_with_indent(node.else)
+        else
+          @str << "; "
+          node.else.accept self
+        end
+      end
+      is_multiline ? append_indent : @str << "; "
       @str << "end"
       false
     end

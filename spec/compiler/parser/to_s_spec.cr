@@ -434,6 +434,102 @@ describe "ASTNode#to_s" do
     end
     CR
 
+  expect_to_s <<-CR
+    {%
+      a = 1 if true
+    %}
+    CR
+
+  expect_to_s <<-CR, <<-CR
+    {%
+      if true; a = 1; end
+    %}
+    CR
+    {%
+      a = 1 if true
+    %}
+    CR
+
+  expect_to_s <<-CR
+    {%
+      if true; a = 1; else; a = 2; end
+    %}
+    CR
+
+  expect_to_s <<-CR, <<-CR
+    {%
+      if true; a = 1; b = 2; else; c = 3; end
+    %}
+    CR
+    {%
+      if true
+        a = 1
+        b = 2
+      else
+        c = 3
+      end
+    %}
+    CR
+
+  expect_to_s <<-CR
+    {%
+      a = 1 unless false
+    %}
+    CR
+
+  expect_to_s <<-CR, <<-CR
+    {%
+      unless true; a = 1; b = 2; else; c = 3; end
+    %}
+    CR
+    {%
+      unless true
+        a = 1
+        b = 2
+      else
+        c = 3
+      end
+    %}
+    CR
+
+  expect_to_s <<-CR
+    {% verbatim do %}
+      {%
+        a = 1 if true
+      %}
+    {% end %}
+    CR
+
+  expect_to_s <<-CR, <<-CR
+    {% verbatim do %}
+      {%
+        if true; a = 1; end
+      %}
+    {% end %}
+    CR
+    {% verbatim do %}
+      {%
+        a = 1 if true
+      %}
+    {% end %}
+    CR
+
+  expect_to_s <<-CR
+    {% verbatim do %}
+      {%
+        if true; a = 1; else; a = 2; end
+      %}
+    {% end %}
+    CR
+
+  expect_to_s <<-CR
+    {% verbatim do %}
+      {%
+        a = 1 unless false
+      %}
+    {% end %}
+    CR
+
   expect_to_s %(asm("nop" ::::))
   expect_to_s %(asm("nop" : "a"(1), "b"(2) : "c"(3), "d"(4) : "e", "f" : "volatile", "alignstack", "intel"))
   expect_to_s %(asm("nop" :: "c"(3), "d"(4) ::))
