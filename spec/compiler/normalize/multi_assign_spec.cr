@@ -61,9 +61,7 @@ describe "Normalize: multi assign" do
     it "normalizes 1 to n" do
       assert_expand_second "d = 1; a, b, c = d", <<-CRYSTAL, flags: "strict_multi_assign"
         __temp_1 = d
-        if __temp_1.size != 3
-          ::raise(::IndexError.new("Multiple assignment count mismatch"))
-        end
+        ::raise(::IndexError.new("Multiple assignment count mismatch")) if __temp_1.size != 3
         a = __temp_1[0]
         b = __temp_1[1]
         c = __temp_1[2]
@@ -73,9 +71,7 @@ describe "Normalize: multi assign" do
     it "normalizes 1 to n with []" do
       assert_expand_third "a = 1; b = 2; a[0], b[1] = 2", <<-CRYSTAL, flags: "strict_multi_assign"
         __temp_1 = 2
-        if __temp_1.size != 2
-          ::raise(::IndexError.new("Multiple assignment count mismatch"))
-        end
+        ::raise(::IndexError.new("Multiple assignment count mismatch")) if __temp_1.size != 2
         a[0] = __temp_1[0]
         b[1] = __temp_1[1]
         CRYSTAL
@@ -84,9 +80,7 @@ describe "Normalize: multi assign" do
     it "normalizes 1 to n with call" do
       assert_expand_third "a = 1; b = 2; a.foo, b.bar = 2", <<-CRYSTAL, flags: "strict_multi_assign"
         __temp_1 = 2
-        if __temp_1.size != 2
-          ::raise(::IndexError.new("Multiple assignment count mismatch"))
-        end
+        ::raise(::IndexError.new("Multiple assignment count mismatch")) if __temp_1.size != 2
         a.foo = __temp_1[0]
         b.bar = __temp_1[1]
         CRYSTAL
@@ -157,9 +151,7 @@ describe "Normalize: multi assign" do
   it "normalizes 1 to n, with splat on left-hand side" do
     assert_expand_third "c = 1; d = 2; a, b, *c.foo, d[0], e, f = 3", <<-CRYSTAL
       __temp_1 = 3
-      if __temp_1.size < 5
-        ::raise(::IndexError.new("Multiple assignment count mismatch"))
-      end
+      ::raise(::IndexError.new("Multiple assignment count mismatch")) if __temp_1.size < 5
       a = __temp_1[0]
       b = __temp_1[1]
       c.foo = __temp_1[2..-4]
@@ -192,9 +184,7 @@ describe "Normalize: multi assign" do
   it "normalizes 1 to n, with *_ on left-hand side (1)" do
     assert_expand "a, *_, b, c = 1", <<-CRYSTAL
       __temp_1 = 1
-      if __temp_1.size < 3
-        ::raise(::IndexError.new("Multiple assignment count mismatch"))
-      end
+      ::raise(::IndexError.new("Multiple assignment count mismatch")) if __temp_1.size < 3
       a = __temp_1[0]
       b = __temp_1[-2]
       c = __temp_1[-1]

@@ -223,7 +223,7 @@ module Crystal
     it "expands a new def with double splat and two named args and regular args" do
       a_def = parse("def new(y, **options); y + options; end").as(Def)
       other_def = a_def.expand_new_default_arguments(Program.new, 0, ["x", "y", "z"])
-      other_def.to_s.should eq("def new:x:y:z(x __temp_1, y __temp_2, z __temp_3)\n  _ = allocate\n  _.initialize(x: __temp_1, y: __temp_2, z: __temp_3)\n  if _.responds_to?(:finalize)\n    ::GC.add_finalizer(_)\n  end\n  _\nend")
+      other_def.to_s.should eq("def new:x:y:z(x __temp_1, y __temp_2, z __temp_3)\n  _ = allocate\n  _.initialize(x: __temp_1, y: __temp_2, z: __temp_3)\n  ::GC.add_finalizer(_) if _.responds_to?(:finalize)\n  _\nend")
     end
 
     it "expands def with reserved external name (#6559)" do
