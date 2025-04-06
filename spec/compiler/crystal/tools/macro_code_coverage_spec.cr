@@ -633,4 +633,28 @@ describe "macro_code_coverage" do
       end
     %}
     CR
+
+  assert_coverage <<-'CR', {2 => "1/3"}
+    {%
+      v = false || true || false
+    %}
+    CR
+
+  assert_coverage <<-'CR', {2 => "1/3"}
+    {%
+      v = 1 || 2 || raise "Oh noes"
+    %}
+    CR
+
+  assert_coverage <<-'CR', {2 => "1/3"}
+    {%
+      v = 1 && 2 && 3
+    %}
+    CR
+
+  assert_coverage <<-'CR', {2 => "1/3"}
+    {%
+      v = 1 && 2 && raise "Oh noes"
+    %}
+    CR
 end

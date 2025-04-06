@@ -427,6 +427,8 @@ module Crystal
     end
 
     def visit(node : And)
+      self.collect_covered_node node
+
       node.left.accept self
       if @last.truthy?
         node.right.accept self
@@ -435,6 +437,8 @@ module Crystal
     end
 
     def visit(node : Or)
+      self.collect_covered_node node
+
       node.left.accept self
       unless @last.truthy?
         node.right.accept self

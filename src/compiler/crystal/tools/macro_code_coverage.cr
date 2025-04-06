@@ -117,7 +117,7 @@ module Crystal
       node, location, missed = nodes.first
 
       # Check for conditional hits first so that suffix conditionals are still treated as `1/2`.
-      if (conditional_node = nodes.find(&.[0].is_a?(If | Unless | MacroIf))) && (node = conditional_node[0]).is_a?(If | Unless | MacroIf) && (branches = self.conditional_statement_branches(node)) > 1
+      if (conditional_node = nodes.find(&.[0].is_a?(If | Unless | MacroIf | Or | And))) && (node = conditional_node[0]).is_a?(If | Unless | MacroIf | Or | And) && (branches = self.conditional_statement_branches(node)) > 1
         # Keep track of what specific conditional branches were hit and missed as to enure a proper partial count
         # p(node: node, location: location)
         newly_hit = @conditional_hit_cache[location.filename][location.line_number].add?({nodes.last[0], nodes.last[2]})
@@ -136,23 +136,31 @@ module Crystal
     end
 
     # Returns how many unique values a conditional statement could return on a single line.
-    private def conditional_statement_branches(node : If | Unless | MacroIf) : Int32
+    private def conditional_statement_branches(node : If | Unless | MacroIf | Or | And) : Int32
       return 1 unless start_location = node.location
       return 1 unless end_location = node.end_location
       return 1 if end_location.line_number > start_location.line_number
 
-      self.conditional_if_statement_branches node
+      self.count_branches node
     end
 
-    private def conditional_if_statement_branches(node : MacroIf | If | Unless) : Int32
-      then_depth = case n = node.then
-                   when MacroIf, If, Unless then self.conditional_if_statement_branches n
+    private def count_branches(node : Or | And) : Int32
+      self.count_branches node.left, node.right
+    end
+
+    private def count_branches(node : MacroIf | If | Unless) : Int32
+      self.count_branches node.then, node.else
+    end
+
+    private def count_branches(left : ASTNode, right : ASTNode) : Int32
+      then_depth = case n = left
+                   when MacroIf, If, Unless, Or, And then self.count_branches n
                    else
                      1
                    end
 
-      else_depth = case n = node.else
-                   when MacroIf, If, Unless then self.conditional_if_statement_branches n
+      else_depth = case n = right
+                   when MacroIf, If, Unless, Or, And then self.count_branches n
                    else
                      1
                    end
