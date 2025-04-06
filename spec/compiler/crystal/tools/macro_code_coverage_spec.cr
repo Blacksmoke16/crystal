@@ -182,6 +182,38 @@ describe "macro_code_coverage" do
     test 1
     CR
 
+  assert_coverage <<-'CR', {2 => 1, 3 => "1/2"}
+    {%
+      if true
+        raise "foo" if Int32 <= Number
+      end
+    %}
+    CR
+
+  assert_coverage <<-'CR', {4 => 1, 5 => "1/2"}
+    macro finished
+      {% verbatim do %}
+        {%
+          if true
+            a = 1 if true
+          end
+        %}
+      {% end %}
+    end
+    CR
+
+  # assert_coverage <<-'CR', {4 => 1, 5 => 1}
+  #   macro finished
+  #     {% verbatim do %}
+  #       {%
+  #         if true
+  #           raise "foo"
+  #         end
+  #       %}
+  #     {% end %}
+  #   end
+  #   CR
+
   assert_coverage <<-'CR', {1 => 1, 2 => 0, 3 => 1, 4 => 1}
     {% unless true %}
       {{0}}
@@ -473,7 +505,7 @@ describe "macro_code_coverage" do
     %}
     CR
 
-  assert_coverage <<-'CR', {4 => 0}
+  assert_coverage <<-'CR', {4 => "1/2"}
     macro finished
       {% verbatim do %}
         {%

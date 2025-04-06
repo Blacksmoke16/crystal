@@ -334,15 +334,16 @@ module Crystal
 
     def visit_if_or_unless(prefix, node)
       if @emit_location_pragmas && (loc = node.location) && (filename = loc.filename).is_a?(String)
-        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+        @str << %(#<loc:"#{filename}",#{loc.line_number},#{loc.column_number}>)
       end
+
       @str << prefix
       @str << ' '
       node.cond.accept self
       newline
 
       if @emit_location_pragmas && (loc = node.then.location) && (filename = loc.filename).is_a?(String)
-        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+        @str << %(#<loc:"#{filename}",#{loc.line_number},#{loc.column_number}>)
       end
 
       accept_with_indent(node.then)
@@ -353,11 +354,13 @@ module Crystal
         accept_with_indent(node.else)
       end
       append_indent
-      @str << "end"
 
       if @emit_location_pragmas && (loc = node.end_location) && (filename = loc.filename).is_a?(String)
-        @str << %(#<loc:"#{loc.filename}",#{loc.line_number},#{loc.column_number}>)
+        @str << %(#<loc:"#{filename}",#{loc.line_number},#{loc.column_number}>)
       end
+
+      @str << "end"
+
       false
     end
 

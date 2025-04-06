@@ -109,7 +109,7 @@ module Crystal
 
     private def process_line(line : Int32, nodes : Array({ASTNode, Location, Bool}), & : {Int32, Location, Int32?} ->) : Nil
       # nodes.each do |(node, location, missed)|
-      #   p({node: node.to_s.gsub("\n", ""), class: node.class, location: location, missed: missed})
+      #   p({node: node.to_s.gsub("\n", "|=|"), class: node.class, location: location, end_location: node.end_location, missed: missed})
       # end
 
       # puts ""
