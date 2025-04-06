@@ -32,21 +32,13 @@ module Crystal
 
       self.compute_coverage result
 
-      # Due to their compiled nature, testing of custom macro logic that raises must be done in its own process.
-      # As such, it is reasonable to expect an application to have quite a few of those to ensure full coverage.
-      #
-      # Because of this, allow providing an ENV var once to denote the output directory where the tool should output the reports to,
-      # globally for all calls to this tool when running `crystal spec`.
-      #
-      # TODO: Other option would be add a like `--report-filename` option and move responsibility to the caller, which would also be reasonable.
-      unless output_dir = ENV["CRYSTAL_MACRO_CODE_COVERAGE_OUTPUT_DIR"]?
-        return self.write_output STDOUT
+      if err = result.program.coverage_interrupt_exception
+        err.inspect_with_backtrace STDOUT
+        puts
+        puts
       end
 
-      File.open ::Path[output_dir, "macro_code_coverage.#{Time.utc.to_unix}.json"], "w" do |file|
-        self.write_output file
-        file.puts
-      end
+      self.write_output STDERR
     end
 
     # See https://docs.codecov.com/docs/codecov-custom-coverage-format

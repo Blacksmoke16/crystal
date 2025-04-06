@@ -202,17 +202,19 @@ describe "macro_code_coverage" do
     end
     CR
 
-  # assert_coverage <<-'CR', {4 => 1, 5 => 1}
-  #   macro finished
-  #     {% verbatim do %}
-  #       {%
-  #         if true
-  #           raise "foo"
-  #         end
-  #       %}
-  #     {% end %}
-  #   end
-  #   CR
+  assert_coverage <<-'CR', {4 => 1, 5 => 1, 7 => 0}
+    macro finished
+      {% verbatim do %}
+        {%
+          if true
+            raise "foo"
+          else
+            pp "foo"
+          end
+        %}
+      {% end %}
+    end
+    CR
 
   assert_coverage <<-'CR', {1 => 1, 2 => 0, 3 => 1, 4 => 1}
     {% unless true %}
@@ -644,6 +646,16 @@ describe "macro_code_coverage" do
     {%
       v = 1 || 2 || raise "Oh noes"
     %}
+    CR
+
+  assert_coverage <<-'CR', {2 => "3/3"}
+    macro test(one, two, three)
+      {{one || two || three}}
+    end
+
+    test true, false, false
+    test false, true, false
+    test false, false, true
     CR
 
   assert_coverage <<-'CR', {2 => "1/3"}

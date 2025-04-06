@@ -18,6 +18,7 @@ class Crystal::Program
   property? collect_covered_macro_nodes : Bool = false
   getter covered_macro_nodes = Array({ASTNode, Location, Bool}).new
   getter collected_covered_macro_nodes = Array(Array({ASTNode, Location, Bool})).new
+  property coverage_interrupt_exception : ::Exception? = nil
 
   def expand_macro(a_macro : Macro, call : Call, scope : Type, path_lookup : Type? = nil, a_def : Def? = nil)
     check_call_to_deprecated_macro a_macro, call
@@ -27,7 +28,7 @@ class Crystal::Program
     output_str = interpreter.to_s
 
     # if interpreter.is_test_file?
-    #   puts
+    #   puts "1"
     #   puts
 
     #   puts output_str
@@ -36,6 +37,10 @@ class Crystal::Program
     #   puts
     # end
     {output_str, interpreter.macro_expansion_pragmas}
+  rescue ex
+    raise ex unless self.collect_covered_macro_nodes?
+
+    raise SkipMacroCodeCoverageException.new ex
   ensure
     self.flush_collected_nodes
   end
@@ -47,7 +52,7 @@ class Crystal::Program
     output_str = interpreter.to_s
 
     # if interpreter.is_test_file?
-    #   puts
+    #   puts "2"
     #   puts
 
     #   puts output_str
@@ -56,6 +61,10 @@ class Crystal::Program
     #   puts
     # end
     {output_str, interpreter.macro_expansion_pragmas}
+  rescue ex
+    raise ex unless self.collect_covered_macro_nodes?
+
+    raise SkipMacroCodeCoverageException.new ex
   ensure
     self.flush_collected_nodes
   end

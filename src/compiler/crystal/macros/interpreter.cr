@@ -94,6 +94,10 @@ module Crystal
       @program.collect_covered_macro_nodes?
     end
 
+    def collect_covered_node(exception : ::Exception) : Nil
+      @program.coverage_interrupt_exception = exception
+    end
+
     def collect_covered_node(node : ASTNode, missed : Bool = false, find_significant : Bool = false) : ASTNode
       return node unless @program.collect_covered_macro_nodes?
       return node unless location = node.location
