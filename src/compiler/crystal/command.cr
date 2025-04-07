@@ -46,7 +46,7 @@ class Crystal::Command
         format                   format project, directories and/or files
         hierarchy                show type hierarchy
         implementations          show implementations for given call in location
-        macro_code_coverage      TODO: Placeholder
+        macro_code_coverage      generate a macro code coverage report
         types                    show type of main variables
         unreachable              show methods that are never called
         --help, -h               show this help

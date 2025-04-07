@@ -5,7 +5,7 @@ require "json"
 module Crystal
   class Command
     private def macro_code_coverage
-      config, result = compile_no_codegen "tool macro_code_coverage", path_filter: true, macro_code_coverage: true
+      config, result = compile_no_codegen "tool macro_code_coverage", path_filter: true, macro_code_coverage: true, allowed_formats: ["codecov"]
 
       coverage_processor = MacroCoverageProcessor.new
 
@@ -33,12 +33,16 @@ module Crystal
       self.compute_coverage result
 
       if err = result.program.coverage_interrupt_exception
+        puts "Encountered an error while computing coverage report:"
+        puts
         err.inspect_with_backtrace STDOUT
         puts
         puts
       end
 
       self.write_output STDERR
+
+      exit 1 if err
     end
 
     # See https://docs.codecov.com/docs/codecov-custom-coverage-format
