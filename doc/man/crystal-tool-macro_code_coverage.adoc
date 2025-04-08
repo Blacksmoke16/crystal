@@ -11,6 +11,11 @@ crystal-tool-macro_code_coverage - generate a macro code coverage report.
 == Synopsis
 *crystal tool macro_code_coverage* [options] [programfile]
 
+== Description
+
+Generate and output a macro code coverage report to STDERR.
+Any exception raised while computing the report is written to STDOUT.
+
 == Options
 
 *-D* _FLAG_, *--define*=_FLAG_::
