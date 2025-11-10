@@ -211,6 +211,7 @@ lib LibLLVM
 
   fun create_builder_in_context = LLVMCreateBuilderInContext(c : ContextRef) : BuilderRef
   fun position_builder_at_end = LLVMPositionBuilderAtEnd(builder : BuilderRef, block : BasicBlockRef)
+  fun position_builder_before = LLVMPositionBuilderBefore(builder : BuilderRef, instr : ValueRef)
   fun get_insert_block = LLVMGetInsertBlock(builder : BuilderRef) : BasicBlockRef
   fun dispose_builder = LLVMDisposeBuilder(builder : BuilderRef)
 

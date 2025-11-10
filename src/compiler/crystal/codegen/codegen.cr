@@ -396,6 +396,11 @@ module Crystal
         end
       end
 
+      # enable code coverage instrumentation
+      if @program.compiler.try(&.code_coverage?)
+        llvm_mod.add_flag(:override, "EnableValueProfiling", 1)
+      end
+
       llvm_mod
     end
 

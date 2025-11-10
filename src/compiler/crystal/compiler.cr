@@ -2,6 +2,7 @@ require "option_parser"
 require "file_utils"
 require "colorize"
 require "crystal/digest/md5"
+require "../../llvm/coverage"
 {% if flag?(:msvc) %}
   require "./loader"
 {% end %}
@@ -199,6 +200,9 @@ module Crystal
     # Whether to link statically
     property? static = false
 
+    # Whether to enable LLVM code coverage instrumentation
+    property? code_coverage = false
+
     property dependency_printer : DependencyPrinter? = nil
 
     # Program that was created for the last compilation.
@@ -324,7 +328,7 @@ module Crystal
 
     private def bc_flags_changed?(output_dir)
       bc_flags_changed = true
-      current_bc_flags = "#{@codegen_target}|#{@mcpu}|#{@mattr}|#{@link_flags}|#{@mcmodel}"
+      current_bc_flags = "#{@codegen_target}|#{@mcpu}|#{@mattr}|#{@link_flags}|#{@mcmodel}|#{@code_coverage}"
       bc_flags_filename = "#{output_dir}/bc_flags#{optimization_mode.suffix}"
       if File.file?(bc_flags_filename)
         previous_bc_flags = File.read(bc_flags_filename).strip
@@ -338,6 +342,20 @@ module Crystal
       llvm_modules = @progress_tracker.stage("Codegen (crystal)") do
         program.codegen node, debug: debug, frame_pointers: frame_pointers,
           single_module: @single_module || @cross_compile || !@emit_targets.none?
+      end
+
+      # Add coverage instrumentation if enabled
+      if @code_coverage
+        @progress_tracker.stage("Coverage instrumentation") do
+          llvm_modules.each do |type_name, info|
+            llvm_mod = info.mod
+            llvm_mod.functions.each do |func|
+              LLVM::Coverage.instrument_function(func)
+            end
+          end
+        end
+        # Note: Coverage mapping metadata is generated in C++ extension
+        # after InstrProfilingLoweringPass runs
       end
 
       output_dir = CacheDir.instance.directory_for(sources)
@@ -420,7 +438,7 @@ module Crystal
       llvm_mod = unit.llvm_mod
 
       @progress_tracker.stage("Codegen (bc+obj)") do
-        optimize llvm_mod, target_machine unless @optimization_mode.o0?
+        optimize llvm_mod, target_machine, unit.source_filename if !@optimization_mode.o0? || @code_coverage
 
         unit.emit(@emit_targets, emit_base_filename || output_filename)
 
@@ -519,6 +537,20 @@ module Crystal
           # pkgs are installed to usr/local/lib but it's not in LIBRARY_PATH by
           # default; we declare it to ease linking on these platforms:
           link_flags += " -L/usr/local/lib"
+        end
+
+        # Link profile runtime for code coverage
+        if @code_coverage
+          # Find and link LLVM's profile runtime library
+          llvm_version = `llvm-config --version`.strip.split('.').first
+          profile_lib = "/usr/lib/clang/#{llvm_version}/lib/linux/libclang_rt.profile-x86_64.a"
+          if File.exists?(profile_lib)
+            # Use --whole-archive to force inclusion of runtime initialization code
+            link_flags += " -Wl,--whole-archive #{profile_lib} -Wl,--no-whole-archive"
+          else
+            # Fallback: try using --coverage flag (works with GCC/Clang driver)
+            link_flags += " --coverage"
+          end
         end
 
         {DEFAULT_LINKER, %(#{DEFAULT_LINKER} "${@}" -o #{Process.quote_posix(output_filename)} #{link_flags} #{program.lib_flags(@cross_compile)}), object_names}
@@ -852,7 +884,7 @@ module Crystal
       end
     {% end %}
 
-    protected def optimize(llvm_mod, target_machine)
+    protected def optimize(llvm_mod, target_machine, source_filename = "")
       {% if LibLLVM::IS_LT_130 %}
         optimize_with_pass_manager(llvm_mod)
       {% else %}
@@ -864,7 +896,21 @@ module Crystal
         {% end %}
 
         LLVM::PassBuilderOptions.new do |options|
-          LLVM.run_passes(llvm_mod, "default<#{@optimization_mode}>", target_machine, options)
+          pass_pipeline = "default<#{@optimization_mode.to_s}>"
+          if @code_coverage
+            # Use C++ extension with coverage instrumentation
+            source_file = source_filename.ends_with?(".cr") ? source_filename : "#{source_filename}.cr"
+            err = LibLLVMExt.run_passes_with_coverage(llvm_mod, pass_pipeline, target_machine, options, 1, source_file)
+          else
+            err = LLVM.run_passes(llvm_mod, pass_pipeline, target_machine, options)
+          end
+
+          unless err.null?
+            msg = LibLLVM.get_error_message(err)
+            error_str = String.new(msg)
+            LibLLVM.dispose_error_message(msg)
+            raise "Failed to run passes: #{error_str}"
+          end
         end
       {% end %}
     end
@@ -927,6 +973,7 @@ module Crystal
       getter name
       getter original_name
       getter llvm_mod
+      getter source_filename : String
       property? reused_previous_compilation = false
       getter object_extension : String
       @memory_buffer : LLVM::MemoryBuffer?
@@ -937,6 +984,7 @@ module Crystal
                      @llvm_mod : LLVM::Module, @output_dir : String, @bc_flags_changed : Bool)
         @name = "_main" if @name == ""
         @original_name = @name
+        @source_filename = program.filename || "unknown.cr"
         @name = String.build do |str|
           @name.each_char do |char|
             case char
@@ -1034,7 +1082,7 @@ module Crystal
       private def compile_to_object
         temporary_object_name = self.temporary_object_name
         target_machine = compiler.create_target_machine
-        compiler.optimize llvm_mod, target_machine unless compiler.optimization_mode.o0?
+        compiler.optimize llvm_mod, target_machine, @source_filename if !compiler.optimization_mode.o0? || compiler.code_coverage?
         target_machine.emit_obj_to_file llvm_mod, temporary_object_name
         File.rename(temporary_object_name, object_name)
       end

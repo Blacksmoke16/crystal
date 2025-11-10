@@ -403,6 +403,10 @@ class Crystal::Command
             error "Invalid value `#{value}` for frame-pointers"
           end
         end
+
+        opts.on("--coverage", "Enable code coverage instrumentation") do
+          compiler.code_coverage = true
+        end
       end
 
       opts.on("-D FLAG", "--define FLAG", "Define a compile-time flag") do |flag|

@@ -33,4 +33,12 @@ lib LibLLVMExt
                                                                                name : Char*) : LibLLVM::ValueRef
 
   fun set_target_machine_global_isel = LLVMExtSetTargetMachineGlobalISel(t : LibLLVM::TargetMachineRef, enable : LibLLVM::Bool)
+
+  # Coverage instrumentation support
+  fun get_instrprof_increment_func = LLVMExtGetInstrProfIncrementFunc(m : LibLLVM::ModuleRef) : LibLLVM::ValueRef
+  fun create_profile_name_var = LLVMExtCreateProfileNameVar(m : LibLLVM::ModuleRef, func_name : Char*, func_name_len : SizeT) : LibLLVM::ValueRef
+  fun compute_function_hash = LLVMExtComputeFunctionHash(func_name : Char*, func_name_len : SizeT) : UInt64
+  fun insert_instrprof_increment = LLVMExtInsertInstrProfIncrement(builder : LibLLVM::BuilderRef, intrinsic_func : LibLLVM::ValueRef, name_ptr : LibLLVM::ValueRef, func_hash : UInt64, num_counters : UInt32, counter_index : UInt32)
+  fun generate_coverage_mapping = LLVMExtGenerateCoverageMapping(m : LibLLVM::ModuleRef, source_file : Char*)
+  fun run_passes_with_coverage = LLVMExtRunPassesWithCoverage(m : LibLLVM::ModuleRef, passes : Char*, tm : LibLLVM::TargetMachineRef, options : LibLLVM::PassBuilderOptionsRef, enable_coverage : LibLLVM::Bool, source_file : Char*) : LibLLVM::ErrorRef
 end
