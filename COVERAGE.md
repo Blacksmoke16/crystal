@@ -19,11 +19,17 @@ Crystal now supports source-based code coverage using LLVM's instrumentation pro
    ```bash
    ./your_program
    ```
-   This generates a `default.profraw` file containing runtime coverage data.
+   This generates a `default.profraw` file containing raw runtime coverage data.
 
-3. **Merge profraw files** (if you have multiple runs):
+3. **Convert profraw to indexed format:**
    ```bash
    llvm-profdata merge -sparse default.profraw -o default.profdata
+   ```
+   This step is **always required** - `llvm-cov` needs the indexed `.profdata` format.
+
+   To merge multiple runs into a single report:
+   ```bash
+   llvm-profdata merge -sparse run1.profraw run2.profraw -o merged.profdata
    ```
 
 4. **Generate coverage reports:**
