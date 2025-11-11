@@ -13,6 +13,10 @@ lib LibLLVM
     AppendUnique = 5
   end
 
+  enum Opcode
+    PHI = 44
+  end
+
   alias AttributeIndex = UInt
 
   fun dispose_message = LLVMDisposeMessage(message : Char*)
@@ -192,6 +196,7 @@ lib LibLLVM
 
   fun get_basic_block_name = LLVMGetBasicBlockName(bb : BasicBlockRef) : Char*
   fun get_basic_block_parent = LLVMGetBasicBlockParent(bb : BasicBlockRef) : ValueRef
+  fun get_basic_block_terminator = LLVMGetBasicBlockTerminator(bb : BasicBlockRef) : ValueRef
   fun get_first_basic_block = LLVMGetFirstBasicBlock(fn : ValueRef) : BasicBlockRef
   fun get_next_basic_block = LLVMGetNextBasicBlock(bb : BasicBlockRef) : BasicBlockRef
   fun append_basic_block_in_context = LLVMAppendBasicBlockInContext(c : ContextRef, fn : ValueRef, name : Char*) : BasicBlockRef
@@ -200,6 +205,7 @@ lib LibLLVM
 
   fun set_metadata = LLVMSetMetadata(val : ValueRef, kind_id : UInt, node : ValueRef)
   fun get_next_instruction = LLVMGetNextInstruction(inst : ValueRef) : ValueRef
+  fun get_instruction_opcode = LLVMGetInstructionOpcode(inst : ValueRef) : Int
 
   fun get_num_arg_operands = LLVMGetNumArgOperands(instr : ValueRef) : UInt
   fun set_instruction_call_convention = LLVMSetInstructionCallConv(instr : ValueRef, cc : LLVM::CallConvention)

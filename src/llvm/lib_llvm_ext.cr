@@ -39,6 +39,7 @@ lib LibLLVMExt
   fun create_profile_name_var = LLVMExtCreateProfileNameVar(m : LibLLVM::ModuleRef, func_name : Char*, func_name_len : SizeT) : LibLLVM::ValueRef
   fun compute_function_hash = LLVMExtComputeFunctionHash(func_name : Char*, func_name_len : SizeT) : UInt64
   fun insert_instrprof_increment = LLVMExtInsertInstrProfIncrement(builder : LibLLVM::BuilderRef, intrinsic_func : LibLLVM::ValueRef, name_ptr : LibLLVM::ValueRef, func_hash : UInt64, num_counters : UInt32, counter_index : UInt32)
+  fun get_first_insertion_pt = LLVMExtGetFirstInsertionPt(bb : LibLLVM::BasicBlockRef) : LibLLVM::ValueRef
   fun generate_coverage_mapping = LLVMExtGenerateCoverageMapping(m : LibLLVM::ModuleRef, source_file : Char*)
   fun run_passes_with_coverage = LLVMExtRunPassesWithCoverage(m : LibLLVM::ModuleRef, passes : Char*, tm : LibLLVM::TargetMachineRef, options : LibLLVM::PassBuilderOptionsRef, enable_coverage : LibLLVM::Bool, source_file : Char*) : LibLLVM::ErrorRef
 end

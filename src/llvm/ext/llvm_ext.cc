@@ -168,6 +168,21 @@ void LLVMExtInsertInstrProfIncrement(LLVMBuilderRef B,
   });
 }
 
+// Get the first safe insertion point in a basic block (after PHI nodes)
+LLVMValueRef LLVMExtGetFirstInsertionPt(LLVMBasicBlockRef BB) {
+  BasicBlock *Block = unwrap(BB);
+
+  // Get the first insertion point (skips PHI nodes automatically)
+  BasicBlock::iterator InsertPt = Block->getFirstInsertionPt();
+
+  if (InsertPt != Block->end()) {
+    return wrap(&*InsertPt);
+  }
+
+  // Block is empty or only has terminator
+  return nullptr;
+}
+
 // Structure to hold debug info for each function
 struct FunctionDebugInfo {
   std::string filename;
