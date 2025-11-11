@@ -14,8 +14,11 @@
 #include <llvm/ProfileData/Coverage/CoverageMapping.h>
 #include <llvm/ProfileData/Coverage/CoverageMappingWriter.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/IR/DebugInfoMetadata.h>
 #include <vector>
 #include <string>
+#include <map>
+#include <set>
 
 using namespace llvm;
 
@@ -165,6 +168,13 @@ void LLVMExtInsertInstrProfIncrement(LLVMBuilderRef B,
   });
 }
 
+// Structure to hold debug info for each function
+struct FunctionDebugInfo {
+  std::string filename;
+  unsigned line_start;
+  unsigned line_end;
+};
+
 // Generate coverage mapping metadata
 void LLVMExtGenerateCoverageMapping(LLVMModuleRef M, const char *SourceFile) {
   Module *Mod = unwrap(M);
@@ -173,9 +183,63 @@ void LLVMExtGenerateCoverageMapping(LLVMModuleRef M, const char *SourceFile) {
   // Coverage mapping format version 6 (current stable)
   const uint32_t CovMapVersion = 6;
 
-  // Step 1: Create simple file table (just one source file for now)
-  // Use CoverageFilenamesSectionWriter to properly encode and compress filenames
-  std::vector<std::string> Filenames = {std::string(SourceFile)};
+  // Step 1: Extract debug info from all functions
+  std::map<std::string, FunctionDebugInfo> func_debug_map;
+  std::set<std::string> unique_files;
+
+  for (auto &F : *Mod) {
+    if (F.isDeclaration()) continue;
+
+    // Get debug info for this function
+    if (DISubprogram *SP = F.getSubprogram()) {
+      DIFile *File = SP->getFile();
+      if (!File) continue;
+
+      // Construct full path
+      std::string full_path;
+      StringRef dir = File->getDirectory();
+      StringRef filename = File->getFilename();
+
+      if (!dir.empty()) {
+        full_path = dir.str() + "/" + filename.str();
+      } else {
+        full_path = filename.str();
+      }
+
+      unsigned line_start = SP->getLine();
+      unsigned line_end = line_start;
+
+      // Find max line by iterating instructions
+      for (auto &BB : F) {
+        for (auto &I : BB) {
+          if (const DebugLoc &DL = I.getDebugLoc()) {
+            unsigned line = DL.getLine();
+            if (line > line_end) {
+              line_end = line;
+            }
+          }
+        }
+      }
+
+      func_debug_map[F.getName().str()] = {full_path, line_start, line_end};
+      unique_files.insert(full_path);
+    }
+  }
+
+  // Step 2: Build filename table from unique files
+  std::vector<std::string> Filenames(unique_files.begin(), unique_files.end());
+  std::map<std::string, unsigned> file_to_idx;
+  for (unsigned i = 0; i < Filenames.size(); i++) {
+    file_to_idx[Filenames[i]] = i;
+  }
+
+  // If no debug info found, fallback to single source file
+  if (Filenames.empty()) {
+    Filenames.push_back(std::string(SourceFile));
+    file_to_idx[std::string(SourceFile)] = 0;
+  }
+
+  // Step 3: Create filenames section
   coverage::CoverageFilenamesSectionWriter FilenamesWriter(Filenames);
 
   std::string FilenamesStr;
@@ -252,14 +316,29 @@ void LLVMExtGenerateCoverageMapping(LLVMModuleRef M, const char *SourceFile) {
       MD5::MD5Result Result = Hash.final();
       uint64_t NameHashLow = Result.low();
 
-      // Create coverage mapping region using LLVM API
-      // Single code region on line 1, cols 1-10
+      // Look up debug info for this function
+      unsigned FileID = 0;
+      unsigned LineStart = 1;
+      unsigned LineEnd = 1;
+
+      auto it = func_debug_map.find(FuncName);
+      if (it != func_debug_map.end()) {
+        const FunctionDebugInfo &info = it->second;
+        auto file_it = file_to_idx.find(info.filename);
+        if (file_it != file_to_idx.end()) {
+          FileID = file_it->second;
+          LineStart = info.line_start;
+          LineEnd = info.line_end;
+        }
+      }
+
+      // Create coverage mapping region with real source locations
       coverage::Counter C = coverage::Counter::getCounter(0);
       coverage::CounterMappingRegion Region =
-          coverage::CounterMappingRegion::makeRegion(C, 0, 1, 1, 1, 10);
+          coverage::CounterMappingRegion::makeRegion(C, FileID, LineStart, 1, LineEnd, 1000);
 
       // Use CoverageMappingWriter to properly encode the mapping data
-      SmallVector<unsigned, 8> VirtualFileMapping = {0};
+      SmallVector<unsigned, 8> VirtualFileMapping = {FileID};
       ArrayRef<coverage::CounterExpression> Expressions;
       coverage::CounterMappingRegion Regions[] = {Region};
       MutableArrayRef<coverage::CounterMappingRegion> RegionsRef(Regions);
