@@ -406,6 +406,7 @@ class Crystal::Command
 
         opts.on("--coverage", "Enable code coverage instrumentation") do
           compiler.code_coverage = true
+          compiler.single_module = true  # Coverage requires single-module to generate unified coverage map
         end
       end
 

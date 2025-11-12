@@ -2,6 +2,23 @@
 
 This document describes the LLVM-based source code coverage implementation in the Crystal compiler and how to use it.
 
+## Executive Summary
+
+**For contributors:** Implementing code coverage from scratch requires understanding four interconnected LLVM subsystems that must work together precisely to produce valid coverage reports.
+
+The implementation leverages LLVM's instrumentation profiling infrastructure, the same system Clang uses for `-fprofile-instr-generate -fcoverage-mapping`. This approach requires:
+
+1. **Instrumentation** - Insert `llvm.instrprof.increment` intrinsics into LLVM IR at function entry and basic block boundaries
+2. **Lowering Pass** - Run LLVM's `InstrProfilingLoweringPass` to convert intrinsics into counter arrays and profile data structures (`__profc_*`, `__profd_*` sections)
+3. **Coverage Mapping** - Generate binary metadata sections (`__llvm_covmap`, `__llvm_covfun`) that map counters to source locations using format version 6 with ULEB128 encoding and zlib compression
+4. **Runtime Linking** - Link against `libclang_rt.profile` to write `.profraw` files at program exit
+
+**Key technical challenge:** Components 2-3 require LLVM C++ APIs with no C API equivalents (`InstrProfilingLoweringPass`, `CoverageMappingWriter`, etc.). Manual reimplementation would require ~950 lines of fragile, version-dependent binary format encoding. The current C++ extension (489 lines) is pragmatic and follows Crystal's approach of using C++ where necessary, migrating to C API when available (see Crystal 1.11.0's LLVM 18 migration).
+
+**Critical implementation details:** Function hashes must match between instrumentation and coverage mapping (DJB2 algorithm), filename table compression must be identical in covmap and covfun sections (MD5 hashing of compressed data), coverage format version must be exactly 6 for LLVM 21, and debug info metadata must be correctly extracted from DISubprogram nodes. Getting any of these wrong produces "malformed coverage data" or "no filename found" errors from `llvm-cov`.
+
+**Current scope:** The implementation instruments simple functions and class methods (pattern: `*functionname:Type` or `*Class#method:Type`). Top-level code outside functions appears as "??" in reports due to missing debug info. Single-module compilation is automatically enabled with `--coverage` to generate a unified coverage map.
+
 ## Overview
 
 Crystal now supports source-based code coverage using LLVM's instrumentation profiling infrastructure. This provides accurate line-by-line and function-level coverage data that integrates with standard LLVM coverage tools (`llvm-cov`, `llvm-profdata`).
@@ -157,6 +174,49 @@ The runtime:
 - Registers an `atexit()` handler
 - Writes `default.profraw` on program exit
 
+#### 5. C++ Extension Dependencies
+
+The coverage implementation requires C++ APIs in `src/llvm/ext/llvm_ext.cc` because critical functionality is **not available in LLVM's C API**.
+
+**Why C++ is necessary:**
+
+The following components have NO C API equivalents and would require ~950 lines of complex, fragile code to reimplement:
+
+1. **InstrProfilingLoweringPass** (Most Critical)
+   - Converts `llvm.instrprof.increment` intrinsics into counter arrays and profile data structures
+   - C++ class with ~500+ lines of LLVM IR manipulation logic
+   - Cannot be invoked through C API's `LLVMRunPasses()` pass pipeline strings
+   - Handles thread safety, counter initialization, and runtime registration
+
+2. **Coverage Mapping Writer**
+   - `coverage::CoverageMappingWriter` - Encodes regions into LLVM's binary format
+   - `coverage::CoverageFilenamesSectionWriter` - Compresses filename tables
+   - Implements precise ULEB128 encoding and zlib compression
+   - Binary format must exactly match llvm-cov expectations (version 6)
+   - ~300 lines of format-specific encoding logic
+
+3. **Debug Info Metadata Traversal**
+   - `DISubprogram`, `DIFile` - Extract source locations from debug metadata
+   - C API has limited debug info reading capabilities
+   - ~100 lines of metadata traversal
+
+4. **Supporting Infrastructure**
+   - MD5 hashing for function names and filename tables
+   - Advanced global variable creation with specific linkage/sections
+   - ~50 lines of utilities
+
+**Alternatives Considered:**
+
+- ❌ **Manual implementation**: Too fragile, breaks with LLVM version changes, high maintenance burden
+- ❌ **External tool wrapper** (Clang): Loses compilation pipeline control, debug info mismatch issues
+- ⏳ **Wait for LLVM C API additions**: Best long-term approach (see Future Enhancements)
+
+**Engineering rationale:**
+
+This C++ dependency is **justified and necessary**, not technical debt. The current implementation (489 lines) is clean, well-structured, and uses the correct LLVM APIs. Manual reimplementation would require significantly more code with higher complexity and fragility.
+
+Crystal 1.11.0 already demonstrated pragmatic C++ usage: some llvm_ext dependencies were removed when LLVM 18 added equivalent C APIs. The same approach will be taken for coverage if/when LLVM exposes these APIs.
+
 ### Compiler Integration
 
 #### Build Flow
@@ -185,7 +245,7 @@ The runtime:
 
 #### Key Files Modified
 
-- `src/compiler/crystal/command.cr` - Added `--coverage` flag
+- `src/compiler/crystal/command.cr` - Added `--coverage` flag (automatically enables `--single-module` for unified coverage map)
 - `src/compiler/crystal/compiler.cr` - Coverage orchestration
 - `src/compiler/crystal/codegen/codegen.cr` - Link profiler runtime
 - `src/llvm/coverage.cr` - Coverage instrumentation API
