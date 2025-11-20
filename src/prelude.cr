@@ -23,6 +23,7 @@ require "number"
 require "primitives"
 
 # Alpha-sorted list
+require "annotation"
 require "annotations"
 require "array"
 require "atomic"

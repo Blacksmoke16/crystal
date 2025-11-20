@@ -1273,4 +1273,46 @@ describe "Semantic: annotation" do
       end
       CRYSTAL
   end
+
+  describe "base Annotation type" do
+    it "has Annotation as base type" do
+      result = semantic(<<-CRYSTAL)
+        annotation Foo
+        end
+        CRYSTAL
+
+      type = result.program.types["Foo"].should be_a AnnotationType
+      type.parents.should eq([result.program.annotation_type])
+    end
+
+    it "has Annotation.class as metaclass supertype" do
+      result = semantic(<<-CRYSTAL)
+        annotation Foo
+        end
+        CRYSTAL
+
+      foo_type = result.program.types["Foo"].should be_a AnnotationType
+      foo_metaclass = foo_type.metaclass
+      annotation_metaclass = result.program.annotation_type.metaclass
+
+      foo_metaclass.superclass.should eq(annotation_metaclass)
+    end
+
+    it "allows annotation types to inherit from Annotation (#12655)" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation Foo
+        end
+
+        annotation Bar
+        end
+
+        # Test that Foo < Annotation
+        {% if Foo < Annotation %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+  end
 end

@@ -264,6 +264,9 @@ module Crystal
       types["GC"] = gc = NonGenericModuleType.new self, self, "GC"
       gc.metaclass.as(ModuleType).add_def Def.new("add_finalizer", [Arg.new("object")], Nop.new)
 
+      types["Annotation"] = annotation_t = @annotation_type = NonGenericClassType.new self, self, "Annotation", value
+      abstract_value_type(annotation_t)
+
       # Built-in annotations
       types["AlwaysInline"] = @always_inline_annotation = AnnotationType.new self, self, "AlwaysInline"
       types["CallConvention"] = @call_convention_annotation = AnnotationType.new self, self, "CallConvention"
@@ -564,7 +567,7 @@ module Crystal
                      array static_array exception tuple named_tuple proc union enum range slice regex crystal
                      packed_annotation thread_local_annotation no_inline_annotation
                      always_inline_annotation naked_annotation returns_twice_annotation
-                     raises_annotation primitive_annotation call_convention_annotation
+                     raises_annotation primitive_annotation call_convention_annotation annotation_type
                      flags_annotation link_annotation extern_annotation deprecated_annotation experimental_annotation) %}
       def {{name.id}}
         @{{name.id}}.not_nil!

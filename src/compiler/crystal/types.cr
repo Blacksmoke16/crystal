@@ -2879,6 +2879,14 @@ module Crystal
   end
 
   class AnnotationType < NamedType
+    def parents
+      @parents ||= [program.annotation_type] of Type
+    end
+
+    def superclass
+      program.annotation_type
+    end
+
     def type_desc
       "annotation"
     end
@@ -2901,6 +2909,8 @@ module Crystal
                         instance_type.superclass.not_nil!.metaclass
                       elsif instance_type.is_a?(EnumType)
                         program.enum.metaclass
+                      elsif instance_type.is_a?(AnnotationType)
+                        program.annotation_type.metaclass
                       else
                         program.class_type
                       end
