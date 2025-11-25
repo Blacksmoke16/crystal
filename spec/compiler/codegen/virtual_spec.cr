@@ -747,4 +747,44 @@ describe "Code gen: virtual type" do
       Moo.new(klass).foo.x
       CRYSTAL
   end
+
+  it "can call new on virtual metaclass with struct inheriting from abstract generic struct" do
+    run(<<-CRYSTAL).to_i.should eq(3)
+      require "prelude"
+
+      abstract struct AbstractType
+      end
+
+      struct Foo < AbstractType
+        def value
+          1
+        end
+      end
+
+      struct Baz < AbstractType
+        def value
+          2
+        end
+      end
+
+      abstract struct GenericType(T) < AbstractType
+      end
+
+      struct Bar < GenericType(Int32)
+        def value
+          3
+        end
+      end
+
+      # Hash value type becomes (Foo | Baz | Bar).class which is AbstractType+.class.
+      # When iterating and calling .new, it should work even though GenericType(Int32)
+      # is abstract and appears in the virtual type's subtypes.
+      hash = {1 => Foo, 2 => Baz, 3 => Bar}
+      result = 0
+      hash.each_value do |klass|
+        result = klass.new.value
+      end
+      result
+      CRYSTAL
+  end
 end
