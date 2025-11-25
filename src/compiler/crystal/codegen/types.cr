@@ -5,7 +5,7 @@ module Crystal
     # the Program, or a non-generic metaclass, doesn't have a `self` argument.
     def passed_as_self?
       case self
-      when Program, FileModule, LibType
+      when Program, FileModule, LibType, AnnotationMetaclassType
         false
       when MetaclassType
         # Given `type T = Void*`, `T.class` is not necessarily a non-generic
@@ -22,7 +22,7 @@ module Crystal
     # In the codegen phase these types are passed as byval pointers.
     def passed_by_value?
       case self
-      when PrimitiveType, PointerInstanceType, ProcInstanceType
+      when PrimitiveType, PointerInstanceType, ProcInstanceType, AnnotationBaseType, AnnotationMetaclassType
         false
       when TupleInstanceType, NamedTupleInstanceType, MixedUnionType
         true

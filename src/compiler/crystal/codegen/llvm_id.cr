@@ -98,6 +98,23 @@ module Crystal
       0
     end
 
+    private def assign_id_impl(type : AnnotationType)
+      # Annotation types cannot be instantiated at runtime, so they don't need IDs
+      0
+    end
+
+    private def assign_id_impl(type : AnnotationMetaclassType)
+      # Each annotation metaclass gets its own ID so they can be distinguished
+      id = next_id
+      put_id type, id, id
+      id
+    end
+
+    private def assign_id_impl(type : AnnotationBaseType)
+      # Assign IDs to all annotation metaclasses that this type can hold
+      assign_id_from_subtypes type, type.annotation_metaclasses
+    end
+
     private def assign_id_impl(type)
       raise "BUG: unhandled type in assign id: #{type}"
     end
@@ -149,6 +166,20 @@ module Crystal
 
     private def assign_id_to_metaclass(type : MetaclassType)
       # Nothing
+    end
+
+    private def assign_id_to_metaclass(type : AnnotationType)
+      # Assign ID to this annotation's metaclass
+      assign_id(type.metaclass)
+    end
+
+    private def assign_id_to_metaclass(type : AnnotationMetaclassType)
+      # Nothing - annotation metaclasses don't have further metaclasses to process
+    end
+
+    private def assign_id_to_metaclass(type : AnnotationBaseType)
+      # The Annotation base type is its own metaclass
+      # Nothing else to do here
     end
 
     private def assign_id_to_metaclass(type)

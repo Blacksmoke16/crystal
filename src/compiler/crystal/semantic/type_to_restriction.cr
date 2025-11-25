@@ -158,6 +158,8 @@ module Crystal
                        Crystal::GenericModuleType |
                        Crystal::LibType |
                        Crystal::AnnotationType |
+                       Crystal::AnnotationBaseType |
+                       Crystal::AnnotationMetaclassType |
                        Crystal::Const |
                        Crystal::NumberAutocastType |
                        Crystal::SymbolAutocastType)

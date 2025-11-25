@@ -209,6 +209,11 @@ class Crystal::CodeGenVisitor
     store value, target_pointer
   end
 
+  def assign_distinct(target_pointer, target_type : AnnotationBaseType, value_type : AnnotationMetaclassType | AnnotationBaseType, value)
+    # Annotation metaclasses are all represented as int32 type IDs
+    store value, target_pointer
+  end
+
   def assign_distinct(target_pointer, target_type : VirtualMetaclassType, value_type : UnionType, value)
     # Can happen when assigning Foo+.class <- Bar.class | Baz.class with Bar < Foo and Baz < Foo
     union_value_ptr = union_value(llvm_type(value_type), value)
@@ -534,6 +539,10 @@ class Crystal::CodeGenVisitor
   end
 
   def upcast_distinct(value, to_type : MetaclassType | GenericClassInstanceMetaclassType | GenericModuleInstanceMetaclassType | VirtualMetaclassType, from_type)
+    value
+  end
+
+  def upcast_distinct(value, to_type : AnnotationBaseType, from_type : AnnotationMetaclassType | AnnotationBaseType)
     value
   end
 

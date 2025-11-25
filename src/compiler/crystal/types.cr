@@ -2879,8 +2879,69 @@ module Crystal
   end
 
   class AnnotationType < NamedType
+    def initialize(program, namespace, name)
+      super(program, namespace, name)
+    end
+
+    def metaclass
+      @metaclass ||= AnnotationMetaclassType.new(program, self)
+    end
+
     def type_desc
       "annotation"
+    end
+  end
+
+  # The metaclass of an annotation type, like `Foo.class` where `Foo` is an annotation.
+  # All annotation metaclasses have `Annotation` as their superclass.
+  class AnnotationMetaclassType < ClassType
+    getter instance_type : AnnotationType
+
+    def initialize(program, @instance_type : AnnotationType)
+      super(program, program, "#{@instance_type}.class", program.annotation_type)
+      # Register with the base Annotation type for polymorphic dispatch
+      program.annotation_type.add_annotation_metaclass(self)
+    end
+
+    def metaclass
+      program.annotation_type
+    end
+
+    def type_desc
+      "metaclass"
+    end
+  end
+
+  # The base `Annotation` type that all annotation metaclasses inherit from.
+  # This is a metaclass of itself, similar to how `Class` works.
+  # It also acts as a virtual type that can hold any annotation metaclass at runtime.
+  class AnnotationBaseType < NonGenericClassType
+    def initialize(program, namespace, name, superclass)
+      super(program, namespace, name, superclass, add_subclass: false)
+      @struct = true
+      @annotation_metaclasses = [] of AnnotationMetaclassType
+    end
+
+    def add_annotation_metaclass(metaclass : AnnotationMetaclassType)
+      @annotation_metaclasses << metaclass
+    end
+
+    def annotation_metaclasses
+      @annotation_metaclasses
+    end
+
+    def each_concrete_type(&)
+      @annotation_metaclasses.each do |metaclass|
+        yield metaclass
+      end
+    end
+
+    def metaclass
+      self
+    end
+
+    def type_desc
+      "struct"
     end
   end
 

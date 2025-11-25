@@ -48,6 +48,11 @@ class Crystal::CodeGenVisitor
     value
   end
 
+  private def type_id_impl(value, type : AnnotationBaseType)
+    # The value itself is the type ID of the annotation metaclass
+    value
+  end
+
   private def type_id_impl(value, type : Program)
     type_id(type)
   end

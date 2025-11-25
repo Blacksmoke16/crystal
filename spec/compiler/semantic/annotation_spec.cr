@@ -1273,4 +1273,73 @@ describe "Semantic: annotation" do
       end
       CRYSTAL
   end
+
+  describe "annotation metaclass" do
+    it "types Annotation" do
+      assert_type("Annotation") { annotation_type }
+    end
+
+    it "types Annotation.class as Annotation" do
+      assert_type("Annotation.class", inject_primitives: true) { annotation_type }
+    end
+
+    it "types user annotation .class as Annotation" do
+      assert_type(<<-CRYSTAL, inject_primitives: true) { annotation_type }
+        annotation Foo; end
+        Foo.class
+      CRYSTAL
+    end
+
+    it "types builtin annotation .class as Annotation" do
+      assert_type("Deprecated.class", inject_primitives: true) { annotation_type }
+    end
+
+    it "allows Annotation.class as generic type argument" do
+      assert_type(<<-CRYSTAL, inject_primitives: true) { generic_class("Array", annotation_type).metaclass }
+        annotation Foo; end
+        annotation Bar; end
+
+        Array(Annotation)
+      CRYSTAL
+    end
+
+    it "Annotation.subclasses includes user-defined annotations" do
+      result = semantic(<<-CRYSTAL, inject_primitives: true)
+        annotation Foo; end
+        annotation Bar; end
+
+        {{ Annotation.subclasses }}
+      CRYSTAL
+      result.node.should be_a(Crystal::TupleLiteral)
+      tuple = result.node.as(Crystal::TupleLiteral)
+      names = tuple.elements.map { |e| e.as(Crystal::TypeNode).type.to_s }
+      names.should contain("Foo")
+      names.should contain("Bar")
+    end
+
+    it "Annotation.subclasses includes built-in annotations" do
+      result = semantic(<<-CRYSTAL, inject_primitives: true)
+        {{ Annotation.subclasses }}
+      CRYSTAL
+      result.node.should be_a(Crystal::TupleLiteral)
+      tuple = result.node.as(Crystal::TupleLiteral)
+      names = tuple.elements.map { |e| e.as(Crystal::TypeNode).type.to_s }
+      names.should contain("Deprecated")
+      names.should contain("Flags")
+    end
+
+    it "Annotation.all_subclasses works" do
+      result = semantic(<<-CRYSTAL, inject_primitives: true)
+        annotation Foo; end
+        annotation Bar; end
+
+        {{ Annotation.all_subclasses }}
+      CRYSTAL
+      result.node.should be_a(Crystal::TupleLiteral)
+      tuple = result.node.as(Crystal::TupleLiteral)
+      names = tuple.elements.map { |e| e.as(Crystal::TypeNode).type.to_s }
+      names.should contain("Foo")
+      names.should contain("Bar")
+    end
+  end
 end

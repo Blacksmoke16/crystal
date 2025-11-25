@@ -164,6 +164,14 @@ module Crystal
       @llvm_context.int32
     end
 
+    private def create_llvm_type(type : AnnotationBaseType, wants_size)
+      @llvm_context.int32
+    end
+
+    private def create_llvm_type(type : AnnotationMetaclassType, wants_size)
+      @llvm_context.int32
+    end
+
     private def create_llvm_type(type : PointerInstanceType, wants_size)
       if wants_size
         return @llvm_context.void_pointer

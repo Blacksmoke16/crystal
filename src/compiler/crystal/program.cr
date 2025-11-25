@@ -225,6 +225,8 @@ module Crystal
       types["Class"] = klass = @class = MetaclassType.new(self, object, value, "Class")
       klass.can_be_stored = false
 
+      types["Annotation"] = @annotation = AnnotationBaseType.new self, self, "Annotation", value
+
       types["Struct"] = struct_t = @struct_t = NonGenericClassType.new self, self, "Struct", value
       abstract_value_type(struct_t)
 
@@ -648,6 +650,16 @@ module Crystal
     # Returns the `Class` type
     def class_type
       @class.not_nil!
+    end
+
+    # Returns the `Annotation` type
+    def annotation_type
+      @annotation.not_nil!
+    end
+
+    # Returns the `Annotation` type, or nil if not yet initialized
+    def annotation_type?
+      @annotation
     end
 
     def new_temp_var(node : ASTNode) : Var

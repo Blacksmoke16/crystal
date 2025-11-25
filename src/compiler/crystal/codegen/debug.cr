@@ -302,7 +302,7 @@ module Crystal
     end
 
     # This is a sinkhole for debug types that most likely does not need to be implemented
-    def create_debug_type(type : NonGenericModuleType | GenericClassInstanceMetaclassType | MetaclassType | NilableProcType | VirtualMetaclassType, original_type : Type)
+    def create_debug_type(type : NonGenericModuleType | GenericClassInstanceMetaclassType | MetaclassType | NilableProcType | VirtualMetaclassType | AnnotationBaseType | AnnotationMetaclassType, original_type : Type)
     end
 
     def create_debug_type(type, original_type : Type)
