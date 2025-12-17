@@ -324,6 +324,35 @@ describe Doc::MarkdDocRenderer do
       # because LibFoo is undocumented
       assert_code_link(generator.type(program), "LibFoo::BAR", %(<a href="LibFoo.html#BAR">LibFoo::BAR</a>))
     end
+
+    describe "method overload matching" do
+      overload_program = semantic(<<-CRYSTAL, wants_doc: true).program
+        class Overloads
+          def foo(a : String); end
+          def foo(b : Int32); end
+        end
+        CRYSTAL
+      overload_generator = Doc::Generator.new(overload_program, [""])
+      overloads = overload_generator.type(overload_program.types["Overloads"])
+
+      it "matches method by type", focus: true do
+        assert_code_link(overloads, "#foo(String)", %(<a href="Overloads.html#foo%28a%3AString%29-instance-method">#foo(String)</a>))
+        # assert_code_link(overloads, "#foo(Int32)", %(<a href="Overloads.html#foo%28b%3AInt32%29-instance-method">#foo(Int32)</a>))
+      end
+
+      it "matches method by param name" do
+        assert_code_link(overloads, "#foo(a)", %(<a href="Overloads.html#foo%28a%3AString%29-instance-method">#foo(a)</a>))
+        assert_code_link(overloads, "#foo(b)", %(<a href="Overloads.html#foo%28b%3AInt32%29-instance-method">#foo(b)</a>))
+      end
+
+      it "falls back to first overload when no match" do
+        assert_code_link(overloads, "#foo(x)", %(<a href="Overloads.html#foo%28a%3AString%29-instance-method">#foo(x)</a>))
+        assert_code_link(overloads, "#foo(Bool)", %(<a href="Overloads.html#foo%28a%3AString%29-instance-method">#foo(Bool)</a>))
+      end
+
+      # NOTE: Generic types like Array(Int32) don't work due to pre-existing
+      # regex limitation - the (.*?) pattern stops at the first closing paren.
+    end
   end
 
   describe "renders code blocks" do

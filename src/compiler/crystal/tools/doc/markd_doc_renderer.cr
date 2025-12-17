@@ -148,25 +148,53 @@ class Crystal::Doc::MarkdDocRenderer < Markd::HTMLRenderer
     %(<a href="#{method.type.path_from(@type)}#{method.anchor}">#{text}</a>)
   end
 
-  private def lookup_method(type, name, args, instance_methods_first = true)
-    case args
-    when ""
-      args_count = nil
-    when "()"
-      args_count = 0
-    else
-      args_count = args.chars.count(',') + 1
+  private def split_args(args : String, &)
+    current = String::Builder.new
+    depth = 0
+
+    args.each_char do |c|
+      case c
+      when '(', '[', '{' then depth += 1
+      when ')', ']', '}' then depth -= 1
+      when ','
+        if depth == 0
+          yield current.to_s
+          current = String::Builder.new
+          next
+        end
+      end
+      current << c
     end
+    yield current.to_s
+  end
+
+  private def parse_arg_specs(args : String) : Array(Crystal::Doc::ArgSpec)?
+    return nil if args.empty?
+
+    specs = [] of Crystal::Doc::ArgSpec
+    split_args(args) do |arg|
+      arg = arg.strip
+      if arg[0]?.try(&.uppercase?)
+        specs << Crystal::Doc::ArgSpec.new(nil, arg)
+      else
+        specs << Crystal::Doc::ArgSpec.new(arg, nil)
+      end
+    end
+    specs
+  end
+
+  private def lookup_method(type, name, args, instance_methods_first = true)
+    arg_specs = parse_arg_specs(args)
 
     base_match =
       if instance_methods_first
-        type.lookup_method(name, args_count) || type.lookup_class_method(name, args_count)
+        type.lookup_method(name, arg_specs) || type.lookup_class_method(name, arg_specs)
       else
-        type.lookup_class_method(name, args_count) || type.lookup_method(name, args_count)
+        type.lookup_class_method(name, arg_specs) || type.lookup_method(name, arg_specs)
       end
     base_match ||
-      type.lookup_macro(name, args_count) ||
-      type.program.lookup_macro(name, args_count)
+      type.lookup_macro(name, arg_specs) ||
+      type.program.lookup_macro(name, arg_specs)
   end
 
   def text(node : Markd::Node, entering : Bool)

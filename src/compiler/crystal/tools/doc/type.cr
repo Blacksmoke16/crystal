@@ -1,5 +1,9 @@
 require "./item"
 
+# Represents a parsed argument spec for method overload matching.
+# Either name or type (or both) can be set.
+record Crystal::Doc::ArgSpec, name : String?, type : String?
+
 class Crystal::Doc::Type
   include Item
 
@@ -519,37 +523,56 @@ class Crystal::Doc::Type
     lookup_in_methods instance_methods, name
   end
 
-  def lookup_method(name, args_size)
-    lookup_in_methods instance_methods, name, args_size
+  def lookup_method(name, arg_specs : Array(ArgSpec)?)
+    lookup_in_methods instance_methods, name, arg_specs
   end
 
   def lookup_class_method(name)
     lookup_in_methods all_class_methods, name
   end
 
-  def lookup_class_method(name, args_size)
-    lookup_in_methods all_class_methods, name, args_size
+  def lookup_class_method(name, arg_specs : Array(ArgSpec)?)
+    lookup_in_methods all_class_methods, name, arg_specs
   end
 
   def lookup_macro(name)
     lookup_in_methods macros, name
   end
 
-  def lookup_macro(name, args_size)
-    lookup_in_methods macros, name, args_size
+  def lookup_macro(name, arg_specs : Array(ArgSpec)?)
+    lookup_in_methods macros, name, arg_specs
   end
 
   private def lookup_in_methods(methods, name)
     methods.find { |method| method.name == name }
   end
 
-  private def lookup_in_methods(methods, name, args_size)
-    if args_size
-      methods.find { |method| method.name == name && method.args.size == args_size }
-    else
+  private def lookup_in_methods(methods, name, arg_specs : Array(ArgSpec)?)
+    unless arg_specs
       methods = methods.select { |method| method.name == name }
-      methods.find(&.args.empty?) || methods.first?
+      return methods.find(&.args.empty?) || methods.first?
     end
+
+    candidates = methods.select { |m| m.name == name && m.args.size == arg_specs.size }
+    return nil if candidates.empty?
+
+    # Try specific matching first (any spec has name or type)
+    has_specific_spec = arg_specs.any? { |s| s.name || s.type }
+
+    if has_specific_spec
+      match = candidates.find do |method|
+        arg_specs.each_with_index.all? do |spec, i|
+          arg = method.args[i]
+          name_ok = spec.name.nil? || spec.name == arg.name || spec.name == arg.external_name
+          type_ok = spec.type.nil? || spec.type == arg.restriction.try(&.to_s)
+          name_ok && type_ok
+        end
+      end
+      return match if match
+    end
+
+    # Fallback: arity-only matching (first candidate)
+    candidates.first?
   end
 
   def method(a_def, class_method)
