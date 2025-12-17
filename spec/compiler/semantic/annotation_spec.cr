@@ -1763,5 +1763,49 @@ describe "Semantic: annotation" do
         {% end %}
         CRYSTAL
     end
+
+    it "does not allow providing a parent initializer's params when child defines own" do
+      assert_error <<-CRYSTAL, "no overload of Child#initialize has parameter 'message'"
+          abstract annotation class Parent
+            def initialize(@message : String)
+            end
+          end
+
+          annotation class Child < Parent
+            def initialize(@id : Int32)
+              super "foo"
+            end
+          end
+
+          @[Child(message: "bar")]
+          class Bar
+          end
+        CRYSTAL
+    end
+
+    it "accepts parent's initialize params when child has no initialize" do
+      assert_type(<<-CRYSTAL) { int32 }
+        abstract annotation class Parent
+          def initialize(@message : String)
+          end
+        end
+
+        annotation class Child < Parent
+          def initialize(@id : Int32)
+            super "foo"
+          end
+        end
+
+        @[Child(id: 123)]
+        class Bar
+        end
+
+        {% if Bar.annotation(Child) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
   end
 end

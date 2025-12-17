@@ -598,77 +598,55 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     end
   end
 
-  # Shallow type check: maps literal kinds to restriction path names.
+  # Shallow type check: compares literal's runtime type against restriction.
   # Returns true if no restriction or if literal type matches restriction.
   private def literal_matches_restriction?(literal : ASTNode, restriction : ASTNode?) : Bool
     return true unless restriction
 
-    # Get acceptable type names for this literal
-    acceptable_types = case literal
-                       when NumberLiteral
-                         {"Int8", "Int16", "Int32", "Int64", "Int128",
-                          "UInt8", "UInt16", "UInt32", "UInt64", "UInt128",
-                          "Float32", "Float64", "Number", "Int", "Float"}
-                       when StringLiteral
-                         {"String"}
-                       when BoolLiteral
-                         {"Bool"}
-                       when SymbolLiteral
-                         {"Symbol"}
-                       when CharLiteral
-                         {"Char"}
-                       when ArrayLiteral
-                         {"Array"}
-                       when HashLiteral
-                         {"Hash"}
-                       when NilLiteral
-                         {"Nil"}
-                       when RangeLiteral
-                         {"Range"}
-                       when RegexLiteral
-                         {"Regex"}
-                       when TupleLiteral
-                         {"Tuple"}
-                       when NamedTupleLiteral
-                         {"NamedTuple"}
-                       when ProcLiteral
-                         {"Proc"}
-                       when Path
-                         # Path could be a type reference (e.g., `SomeClass`)
-                         # Allow any Path without shallow type checking
-                         return true
-                       else
-                         # For complex expressions, skip shallow validation
-                         return true
-                       end
+    # Use literal's runtime_type if available
+    if runtime_type = literal.runtime_type
+      # NumberLiterals also match abstract number types
+      if literal.is_a?(NumberLiteral)
+        kind = literal.kind
+        abstract_types = if kind.signed_int? || kind.unsigned_int?
+                           {"Number", "Int"}
+                         else
+                           {"Number", "Float"}
+                         end
+        return restriction_matches_type?(restriction, runtime_type, abstract_types)
+      end
 
-    restriction_matches_any?(restriction, acceptable_types)
+      return restriction_matches_type?(restriction, runtime_type)
+    end
+
+    # Path could be a type reference - allow without validation
+    return true if literal.is_a?(Path)
+
+    # For complex expressions, skip shallow validation
+    true
   end
 
-  # Checks if restriction matches any of the acceptable type names
-  private def restriction_matches_any?(restriction : ASTNode, acceptable_types : Tuple) : Bool
+  # Checks if restriction matches the runtime type or any abstract types
+  private def restriction_matches_type?(restriction : ASTNode, runtime_type : String, abstract_types : Tuple? = nil) : Bool
     case restriction
     when Path
-      # Simple type path like `String`, `Int32`, etc.
-      acceptable_types.includes?(restriction.names.last)
+      name = restriction.names.last
+      return true if name == runtime_type
+      abstract_types.try(&.includes?(name)) || false
     when Generic
       # Generic type like `Array(String)` - check base name
       if restriction.name.is_a?(Path)
-        acceptable_types.includes?(restriction.name.as(Path).names.last)
+        name = restriction.name.as(Path).names.last
+        return true if name == runtime_type
+        abstract_types.try(&.includes?(name)) || false
       else
         true # Complex generic, skip validation
       end
     when Union
       # Union type - literal can match any member
-      restriction.types.any? { |t| restriction_matches_any?(t, acceptable_types) }
-    when Metaclass
-      # Type.class - skip validation
-      true
-    when Self
-      # self type - skip validation
-      true
-    when Underscore
-      # _ type - accepts anything
+      restriction.types.any? { |t| restriction_matches_type?(t, runtime_type, abstract_types) }
+    when Metaclass, Self, Underscore
+      # Skip validation for these
       true
     else
       # Unknown restriction type, skip validation
