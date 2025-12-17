@@ -412,6 +412,9 @@ module Crystal
       if node.abstract?
         @str << "abstract "
       end
+      if node.annotation?
+        @str << "annotation "
+      end
       @str << (node.struct? ? "struct" : "class")
       @str << ' '
       node.name.accept self

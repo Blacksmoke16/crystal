@@ -2770,6 +2770,13 @@ module Crystal
 
     it_parses %(annotation Foo\nend\nrequire "bar"), [AnnotationDef.new("Foo".path), Require.new("bar")]
 
+    it_parses "annotation class Foo; end", ClassDef.new("Foo".path, annotation: true)
+    it_parses "annotation struct Foo; end", ClassDef.new("Foo".path, struct: true, annotation: true)
+    it_parses "abstract annotation class Foo; end", ClassDef.new("Foo".path, abstract: true, annotation: true)
+    it_parses "abstract annotation struct Foo; end", ClassDef.new("Foo".path, abstract: true, struct: true, annotation: true)
+    it_parses "annotation class Foo < Bar; end", ClassDef.new("Foo".path, superclass: "Bar".path, annotation: true)
+    it_parses "annotation class Foo(T); end", ClassDef.new("Foo".path, type_vars: ["T"], annotation: true)
+
     assert_syntax_error "def foo(x : *Int32); end", "invalid type splat"
     assert_syntax_error "def foo(x : (*Int32)); end", "invalid type splat"
     assert_syntax_error "def foo(x : Int32, Int32); end"

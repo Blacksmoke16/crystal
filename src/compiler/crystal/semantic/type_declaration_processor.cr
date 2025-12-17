@@ -14,7 +14,7 @@ struct Crystal::TypeDeclarationProcessor
     type : Type,
     location : Location,
     uninitialized : Bool,
-    annotations : Array({AnnotationType, Annotation})?
+    annotations : Array({Type, Annotation})?
 
   # This captures an initialize info: it's related Def,
   # and which instance variables are assigned. Useful
@@ -56,15 +56,15 @@ struct Crystal::TypeDeclarationProcessor
   class InstanceVarTypeInfo
     property type : Type
     property outside_def
-    property annotations : Array({AnnotationType, Annotation})?
+    property annotations : Array({Type, Annotation})?
     getter location
 
     def initialize(@location : Location, @type : Type)
       @outside_def = false
     end
 
-    def add_annotations(anns : Array({AnnotationType, Annotation})?)
-      annotations = @annotations ||= [] of {AnnotationType, Annotation}
+    def add_annotations(anns : Array({Type, Annotation})?)
+      annotations = @annotations ||= [] of {Type, Annotation}
       annotations.concat(anns)
     end
   end

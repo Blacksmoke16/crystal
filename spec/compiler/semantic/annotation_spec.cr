@@ -1273,4 +1273,495 @@ describe "Semantic: annotation" do
       end
       CRYSTAL
   end
+
+  describe "annotation class" do
+    it "declares annotation class" do
+      result = semantic(<<-CRYSTAL)
+        annotation class Foo
+        end
+        CRYSTAL
+
+      type = result.program.types["Foo"]
+      type.should be_a(NonGenericClassType)
+      type.as(ClassType).annotation_class?.should be_true
+      type.name.should eq("Foo")
+    end
+
+    it "declares annotation struct" do
+      result = semantic(<<-CRYSTAL)
+        annotation struct Foo
+        end
+        CRYSTAL
+
+      type = result.program.types["Foo"]
+      type.should be_a(NonGenericClassType)
+      type.as(ClassType).annotation_class?.should be_true
+      type.as(ClassType).struct?.should be_true
+    end
+
+    it "declares abstract annotation class" do
+      result = semantic(<<-CRYSTAL)
+        abstract annotation class Foo
+        end
+        CRYSTAL
+
+      type = result.program.types["Foo"]
+      type.should be_a(NonGenericClassType)
+      type.as(ClassType).annotation_class?.should be_true
+      type.as(ClassType).abstract?.should be_true
+    end
+
+    it "allows using annotation class as @[Foo]" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+        end
+
+        @[Foo]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "allows annotation class inheritance" do
+      assert_no_errors <<-CRYSTAL
+        abstract annotation class Constraint
+        end
+
+        annotation class NotBlank < Constraint
+        end
+        CRYSTAL
+    end
+
+    it "finds child annotations via parent type" do
+      assert_type(<<-CRYSTAL) { int32 }
+        abstract annotation class Constraint
+        end
+
+        annotation class NotBlank < Constraint
+        end
+
+        @[NotBlank]
+        class Foo
+        end
+
+        {% if Foo.annotation(Constraint) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "finds all child annotations via parent type" do
+      assert_type(<<-CRYSTAL) { int32 }
+        abstract annotation class Constraint
+        end
+
+        annotation class NotBlank < Constraint
+        end
+
+        annotation class Length < Constraint
+        end
+
+        @[NotBlank]
+        @[Length]
+        class Foo
+        end
+
+        {% if Foo.annotations(Constraint).size == 2 %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "to_runtime_representation generates .new call" do
+      assert_type(<<-CRYSTAL) { types["NotBlank"] }
+        annotation class NotBlank
+          def initialize(@message : String = "cannot be blank")
+          end
+
+          def message
+            @message
+          end
+        end
+
+        @[NotBlank]
+        class Foo
+        end
+
+        {% begin %}
+          {{ Foo.annotation(NotBlank).to_runtime_representation }}
+        {% end %}
+        CRYSTAL
+    end
+
+    it "to_runtime_representation passes named args" do
+      assert_type(<<-CRYSTAL) { string }
+        annotation class NotBlank
+          def initialize(@message : String = "cannot be blank")
+          end
+
+          def message
+            @message
+          end
+        end
+
+        @[NotBlank(message: "custom message")]
+        class Foo
+        end
+
+        {% begin %}
+          {{ Foo.annotation(NotBlank).to_runtime_representation }}.message
+        {% end %}
+        CRYSTAL
+    end
+
+    it "errors when reopening non-annotation class as annotation class" do
+      assert_error <<-CRYSTAL, "Foo is not an annotation class"
+        class Foo
+        end
+
+        annotation class Foo
+        end
+        CRYSTAL
+    end
+
+    it "errors when reopening annotation class as non-annotation class" do
+      assert_error <<-CRYSTAL, "Foo is not an annotation class"
+        annotation class Foo
+        end
+
+        class Foo
+        end
+        CRYSTAL
+    end
+
+    # Validation tests
+    it "validates named arg exists in initialize" do
+      assert_error <<-CRYSTAL, "no overload of Foo#initialize has parameter 'unknown'"
+        annotation class Foo
+          def initialize(@message : String)
+          end
+        end
+
+        @[Foo(unknown: "value")]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "validates positional arg count" do
+      assert_error <<-CRYSTAL, "no overload of Foo#initialize accepts positional argument at index 1"
+        annotation class Foo
+          def initialize(@message : String)
+          end
+        end
+
+        @[Foo("hello", "extra")]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "validates named arg type (string vs number)" do
+      assert_error <<-CRYSTAL, "no overload of Foo#initialize has parameter 'message'"
+        annotation class Foo
+          def initialize(@message : String)
+          end
+        end
+
+        @[Foo(message: 123)]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "validates positional arg type" do
+      assert_error <<-CRYSTAL, "no overload of Foo#initialize accepts positional argument at index 0"
+        annotation class Foo
+          def initialize(@count : Int32)
+          end
+        end
+
+        @[Foo("not a number")]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "accepts valid args with correct types" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@message : String, @count : Int32)
+          end
+        end
+
+        @[Foo("hello", 42)]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "accepts valid named args" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@message : String, @count : Int32 = 0)
+          end
+        end
+
+        @[Foo(message: "hello", count: 10)]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "accepts union types" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@value : String | Int32)
+          end
+        end
+
+        @[Foo("string")]
+        class Bar
+        end
+
+        @[Foo(123)]
+        class Baz
+        end
+
+        {% if Bar.annotation(Foo) && Baz.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "validates union type mismatch" do
+      assert_error <<-CRYSTAL, "no overload of Foo#initialize accepts positional argument at index 0"
+        annotation class Foo
+          def initialize(@value : String | Int32)
+          end
+        end
+
+        @[Foo(:symbol)]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "accepts no args when initialize has defaults" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@message : String = "default")
+          end
+        end
+
+        @[Foo]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "validates with multiple overloads - accepts if any matches" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@message : String, @count : Int32 = 0)
+          end
+
+          def initialize(@count : Int32, @message : String = "")
+          end
+        end
+
+        @[Foo("string")]
+        class Bar
+        end
+
+        @[Foo(123)]
+        class Baz
+        end
+
+        {% if Bar.annotation(Foo) && Baz.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "errors when no args but initialize requires them" do
+      assert_error <<-CRYSTAL, "Foo has no constructor but annotation has arguments"
+        annotation class Foo
+        end
+
+        @[Foo("arg")]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "accepts double splat for any named args" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(**options)
+          end
+        end
+
+        @[Foo(any_name: "value", another: 123)]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "accepts array literal for Array type" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@items : Array(String))
+          end
+        end
+
+        @[Foo(["a", "b", "c"])]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "accepts hash literal for Hash type" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@map : Hash(String, Int32))
+          end
+        end
+
+        @[Foo({"a" => 1, "b" => 2})]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    # Default value tests
+    it "ann[:field] returns default from initialize when not explicitly set" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@message : String = "default_message")
+          end
+        end
+
+        @[Foo]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo)[:message] == "default_message" %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "ann[:field] returns explicit value over default" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@message : String = "default_message")
+          end
+        end
+
+        @[Foo(message: "explicit")]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo)[:message] == "explicit" %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "ann[:field] returns nil for non-existent field without default" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@message : String)
+          end
+        end
+
+        @[Foo("hello")]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo)[:nonexistent] == nil %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "ann[:field] returns default from any overload" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def initialize(@count : Int32, @message : String = "from_int")
+          end
+
+          def initialize(@message : String, @count : Int32 = 0)
+          end
+        end
+
+        @[Foo(42)]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo)[:message] == "from_int" %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+  end
 end

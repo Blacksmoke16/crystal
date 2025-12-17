@@ -2720,7 +2720,14 @@ module Crystal
           named_arg = self.named_args.try &.find do |named_arg|
             named_arg.name == name
           end
-          named_arg.try(&.value) || NilLiteral.new
+
+          if named_arg
+            named_arg.value
+          elsif (default = annotation_class_default_value(name, interpreter))
+            default
+          else
+            NilLiteral.new
+          end
         end
       when "args"
         interpret_check_args do
@@ -2730,9 +2737,38 @@ module Crystal
         interpret_check_args do
           get_named_annotation_args self
         end
+      when "to_runtime_representation"
+        interpret_check_args do
+          Call.new(@path.clone, "new", args: @args.clone, named_args: @named_args.clone)
+        end
       else
         super
       end
+    end
+
+    # For annotation classes, looks up the default value for a named parameter
+    # from the initialize method(s).
+    private def annotation_class_default_value(name : String, interpreter : MacroInterpreter) : ASTNode?
+      # Try to resolve the annotation path to a type
+      resolved = interpreter.resolve?(@path)
+      return nil unless resolved.is_a?(TypeNode)
+
+      type = resolved.type
+      return nil unless type.is_a?(ClassType) && type.annotation_class?
+
+      # Look up initialize methods
+      init_defs = type.lookup_defs("initialize", lookup_ancestors_for_new: true)
+
+      # Search for a parameter with the given external name and a default value
+      init_defs.each do |init_def|
+        init_def.args.each do |arg|
+          if arg.external_name == name && (default = arg.default_value)
+            return default.clone
+          end
+        end
+      end
+
+      nil
     end
   end
 
@@ -3413,7 +3449,7 @@ private def fetch_annotation(node, method, args, named_args, block, &)
     end
 
     type = arg.type
-    unless type.is_a?(Crystal::AnnotationType)
+    unless type.is_a?(Crystal::AnnotationType) || (type.is_a?(Crystal::ClassType) && type.annotation_class?)
       args[0].raise "argument to '#{node.class_desc}#annotation' must be an annotation type, not #{type} (#{type.type_desc})"
     end
 
@@ -3433,7 +3469,7 @@ private def fetch_annotations(node, method, args, named_args, block, &)
     end
 
     type = arg.type
-    unless type.is_a?(Crystal::AnnotationType)
+    unless type.is_a?(Crystal::AnnotationType) || (type.is_a?(Crystal::ClassType) && type.annotation_class?)
       args[0].raise "argument to '#{node.class_desc}#annotation' must be an annotation type, not #{type} (#{type.type_desc})"
     end
 

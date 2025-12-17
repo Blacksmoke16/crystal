@@ -1509,9 +1509,10 @@ module Crystal
     property splat_index : Int32?
     property? abstract : Bool
     property? struct : Bool
+    property? annotation : Bool
     property visibility = Visibility::Public
 
-    def initialize(@name, body = nil, @superclass = nil, @type_vars = nil, @abstract = false, @struct = false, @splat_index = nil)
+    def initialize(@name, body = nil, @superclass = nil, @type_vars = nil, @abstract = false, @struct = false, @annotation = false, @splat_index = nil)
       @body = Expressions.from body
     end
 
@@ -1521,12 +1522,12 @@ module Crystal
     end
 
     def clone_without_location
-      clone = ClassDef.new(@name, @body.clone, @superclass.clone, @type_vars.clone, @abstract, @struct, @splat_index)
+      clone = ClassDef.new(@name, @body.clone, @superclass.clone, @type_vars.clone, @abstract, @struct, @annotation, @splat_index)
       clone.name_location = name_location
       clone
     end
 
-    def_equals_and_hash @name, @body, @superclass, @type_vars, @abstract, @struct, @splat_index
+    def_equals_and_hash @name, @body, @superclass, @type_vars, @abstract, @struct, @annotation, @splat_index
   end
 
   # Module definition:

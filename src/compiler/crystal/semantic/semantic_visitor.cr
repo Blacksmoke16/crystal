@@ -491,7 +491,7 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     end
   end
 
-  def lookup_annotation(ann)
+  def lookup_annotation(ann) : Type
     # TODO: Since there's `Int::Primitive`, and now we'll have
     # `::Primitive`, but there's no way to specify ::Primitive
     # just yet in annotations, we temporarily hardcode
@@ -507,11 +507,15 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
       type = lookup_type(ann.path)
     end
 
-    unless type.is_a?(AnnotationType)
-      ann.raise "#{ann.path} is not an annotation, it's a #{type.type_desc}"
+    # Accept traditional annotations
+    return type if type.is_a?(AnnotationType)
+
+    # Accept annotation classes/structs
+    if type.is_a?(ClassType) && type.annotation_class?
+      return type
     end
 
-    type
+    ann.raise "#{ann.path} is not an annotation, it's a #{type.type_desc}"
   end
 
   def validate_annotation(annotation_type, ann)
@@ -524,6 +528,151 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     when @program.experimental_annotation
       # ditto DeprecatedAnnotation
       ExperimentalAnnotation.from(ann)
+    end
+
+    # Light validation for annotation classes
+    if annotation_type.is_a?(ClassType) && annotation_type.annotation_class?
+      validate_annotation_class_args(annotation_type, ann)
+    end
+  end
+
+  # Validates annotation arguments against initialize overloads.
+  # Checks that field names exist and types are compatible (shallow check).
+  private def validate_annotation_class_args(annotation_type : ClassType, ann : Annotation)
+    init_defs = annotation_type.lookup_defs("initialize", lookup_ancestors_for_new: true)
+
+    # If no initializers, any args are invalid
+    if init_defs.empty? && ann.has_any_args?
+      ann.raise "#{annotation_type} has no constructor but annotation has arguments"
+    end
+
+    return if init_defs.empty?
+
+    # Validate positional args
+    ann.args.each_with_index do |arg, index|
+      unless positional_arg_valid_in_any_overload?(init_defs, index, arg)
+        ann.raise "no overload of #{annotation_type}#initialize accepts positional argument at index #{index}"
+      end
+    end
+
+    # Validate named args
+    ann.named_args.try &.each do |named_arg|
+      unless named_arg_valid_in_any_overload?(init_defs, named_arg)
+        ann.raise "no overload of #{annotation_type}#initialize has parameter '#{named_arg.name}'"
+      end
+    end
+  end
+
+  # Checks if positional arg at given index is valid in any initialize overload
+  private def positional_arg_valid_in_any_overload?(init_defs : Array(Def), index : Int32, arg : ASTNode) : Bool
+    init_defs.any? do |init_def|
+      param = param_at_positional_index(init_def, index)
+      param && literal_matches_restriction?(arg, param.restriction)
+    end
+  end
+
+  # Gets the parameter at a positional index, handling splat
+  private def param_at_positional_index(init_def : Def, index : Int32) : Arg?
+    splat_index = init_def.splat_index
+
+    if splat_index
+      if index < splat_index
+        init_def.args[index]?
+      elsif index >= splat_index
+        # After or at splat - could be captured by splat
+        init_def.args[splat_index]?
+      else
+        nil
+      end
+    else
+      init_def.args[index]?
+    end
+  end
+
+  # Checks if named arg exists in any initialize overload
+  private def named_arg_valid_in_any_overload?(init_defs : Array(Def), named_arg : NamedArgument) : Bool
+    init_defs.any? do |init_def|
+      param = init_def.args.find { |arg| arg.external_name == named_arg.name }
+      param ||= init_def.double_splat # double splat accepts any named arg
+      param && literal_matches_restriction?(named_arg.value, param.restriction)
+    end
+  end
+
+  # Shallow type check: maps literal kinds to restriction path names.
+  # Returns true if no restriction or if literal type matches restriction.
+  private def literal_matches_restriction?(literal : ASTNode, restriction : ASTNode?) : Bool
+    return true unless restriction
+
+    # Get acceptable type names for this literal
+    acceptable_types = case literal
+                       when NumberLiteral
+                         {"Int8", "Int16", "Int32", "Int64", "Int128",
+                          "UInt8", "UInt16", "UInt32", "UInt64", "UInt128",
+                          "Float32", "Float64", "Number", "Int", "Float"}
+                       when StringLiteral
+                         {"String"}
+                       when BoolLiteral
+                         {"Bool"}
+                       when SymbolLiteral
+                         {"Symbol"}
+                       when CharLiteral
+                         {"Char"}
+                       when ArrayLiteral
+                         {"Array"}
+                       when HashLiteral
+                         {"Hash"}
+                       when NilLiteral
+                         {"Nil"}
+                       when RangeLiteral
+                         {"Range"}
+                       when RegexLiteral
+                         {"Regex"}
+                       when TupleLiteral
+                         {"Tuple"}
+                       when NamedTupleLiteral
+                         {"NamedTuple"}
+                       when ProcLiteral
+                         {"Proc"}
+                       when Path
+                         # Path could be a type reference (e.g., `SomeClass`)
+                         # Allow any Path without shallow type checking
+                         return true
+                       else
+                         # For complex expressions, skip shallow validation
+                         return true
+                       end
+
+    restriction_matches_any?(restriction, acceptable_types)
+  end
+
+  # Checks if restriction matches any of the acceptable type names
+  private def restriction_matches_any?(restriction : ASTNode, acceptable_types : Tuple) : Bool
+    case restriction
+    when Path
+      # Simple type path like `String`, `Int32`, etc.
+      acceptable_types.includes?(restriction.names.last)
+    when Generic
+      # Generic type like `Array(String)` - check base name
+      if restriction.name.is_a?(Path)
+        acceptable_types.includes?(restriction.name.as(Path).names.last)
+      else
+        true # Complex generic, skip validation
+      end
+    when Union
+      # Union type - literal can match any member
+      restriction.types.any? { |t| restriction_matches_any?(t, acceptable_types) }
+    when Metaclass
+      # Type.class - skip validation
+      true
+    when Self
+      # self type - skip validation
+      true
+    when Underscore
+      # _ type - accepts anything
+      true
+    else
+      # Unknown restriction type, skip validation
+      true
     end
   end
 

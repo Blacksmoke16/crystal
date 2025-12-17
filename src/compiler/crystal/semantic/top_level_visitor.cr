@@ -87,6 +87,10 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
         node.raise "#{name} is not a #{node.struct? ? "struct" : "class"}, it's a #{type.type_desc}"
       end
 
+      if node.annotation? != type.annotation_class?
+        node.raise "#{name} is not an annotation #{node.struct? ? "struct" : "class"}"
+      end
+
       if type_vars = node.type_vars
         if type.is_a?(GenericType)
           check_reopened_generic(type, node, type_vars)
@@ -106,6 +110,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
         end
         type.abstract = node.abstract?
         type.struct = node.struct?
+        type.annotation_class = node.annotation?
       in .reference_storage_type?
         type_vars = node.type_vars
         case

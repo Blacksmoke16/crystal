@@ -1226,6 +1226,7 @@ module Crystal
     getter depth : Int32
     property? :abstract; @abstract = false
     property? :struct; @struct = false
+    property? annotation_class : Bool = false
     property? can_be_stored = true
     property? lookup_new_in_ancestors = false
 
