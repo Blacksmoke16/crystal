@@ -2747,7 +2747,7 @@ module Crystal
     end
 
     # For annotation classes, looks up the default value for a named parameter
-    # from the initialize method(s).
+    # from initialize or self.new method(s).
     private def annotation_class_default_value(name : String, interpreter : MacroInterpreter) : ASTNode?
       # Try to resolve the annotation path to a type
       resolved = interpreter.resolve?(@path)
@@ -2756,12 +2756,14 @@ module Crystal
       type = resolved.type
       return nil unless type.is_a?(ClassType) && type.annotation_class?
 
-      # Look up initialize methods
+      # Look up initialize and self.new methods, excluding private
       init_defs = type.lookup_defs("initialize", lookup_ancestors_for_new: true)
+      new_defs = type.metaclass.lookup_defs("new", lookup_ancestors_for_new: true)
+      all_constructors = (init_defs + new_defs).reject(&.visibility.private?)
 
       # Search for a parameter with the given external name and a default value
-      init_defs.each do |init_def|
-        init_def.args.each do |arg|
+      all_constructors.each do |constructor|
+        constructor.args.each do |arg|
           if arg.external_name == name && (default = arg.default_value)
             return default.clone
           end

@@ -1446,7 +1446,7 @@ describe "Semantic: annotation" do
 
     # Validation tests
     it "validates named arg exists in initialize" do
-      assert_error <<-CRYSTAL, "no overload of Foo#initialize has parameter 'unknown'"
+      assert_error <<-CRYSTAL, "no overload of Foo.new has parameter 'unknown'"
         annotation class Foo
           def initialize(@message : String)
           end
@@ -1459,7 +1459,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates positional arg count" do
-      assert_error <<-CRYSTAL, "no overload of Foo#initialize accepts positional argument at index 1"
+      assert_error <<-CRYSTAL, "no overload of Foo.new accepts positional argument at index 1"
         annotation class Foo
           def initialize(@message : String)
           end
@@ -1472,7 +1472,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates named arg type (string vs number)" do
-      assert_error <<-CRYSTAL, "no overload of Foo#initialize has parameter 'message'"
+      assert_error <<-CRYSTAL, "no overload of Foo.new has parameter 'message'"
         annotation class Foo
           def initialize(@message : String)
           end
@@ -1485,7 +1485,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates positional arg type" do
-      assert_error <<-CRYSTAL, "no overload of Foo#initialize accepts positional argument at index 0"
+      assert_error <<-CRYSTAL, "no overload of Foo.new accepts positional argument at index 0"
         annotation class Foo
           def initialize(@count : Int32)
           end
@@ -1559,7 +1559,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates union type mismatch" do
-      assert_error <<-CRYSTAL, "no overload of Foo#initialize accepts positional argument at index 0"
+      assert_error <<-CRYSTAL, "no overload of Foo.new accepts positional argument at index 0"
         annotation class Foo
           def initialize(@value : String | Int32)
           end
@@ -1765,7 +1765,7 @@ describe "Semantic: annotation" do
     end
 
     it "does not allow providing a parent initializer's params when child defines own" do
-      assert_error <<-CRYSTAL, "no overload of Child#initialize has parameter 'message'"
+      assert_error <<-CRYSTAL, "no overload of Child.new has parameter 'message'"
           abstract annotation class Parent
             def initialize(@message : String)
             end
@@ -1801,6 +1801,110 @@ describe "Semantic: annotation" do
         end
 
         {% if Bar.annotation(Child) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    # self.new validation tests
+    it "validates against self.new parameters" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Size
+          def self.new(range : Range(Int32, Int32))
+            new range.begin, range.end
+          end
+
+          def initialize(@min : Int32, @max : Int32)
+          end
+        end
+
+        @[Size(1..10)]
+        class Bar
+        end
+
+        {% if Bar.annotation(Size) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "rejects args not matching any self.new or initialize" do
+      assert_error <<-CRYSTAL, "no overload of Size.new has parameter 'invalid'"
+        annotation class Size
+          def self.new(range : Range(Int32, Int32))
+            new range.begin, range.end
+          end
+
+          def initialize(@min : Int32, @max : Int32)
+          end
+        end
+
+        @[Size(invalid: "value")]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "accepts self.new positional arg even if initialize is private" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Size
+          def self.new(range : Range(Int32, Int32))
+            new range.begin, range.end
+          end
+
+          private def initialize(@min : Int32, @max : Int32)
+          end
+        end
+
+        @[Size(1..10)]
+        class Bar
+        end
+
+        {% if Bar.annotation(Size) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "rejects private initialize params when self.new exists" do
+      assert_error <<-CRYSTAL, "no overload of Size.new accepts positional argument at index 0"
+        annotation class Size
+          def self.new(range : Range(Int32, Int32))
+            new range.begin, range.end
+          end
+
+          private def initialize(@min : Int32, @max : Int32)
+          end
+        end
+
+        @[Size(1, 10)]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "gets default value from self.new parameter" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation class Foo
+          def self.new(range : Range(Int32, Int32) = 1..10)
+            new range.begin, range.end
+          end
+
+          private def initialize(@min : Int32, @max : Int32)
+          end
+        end
+
+        @[Foo]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo)[:range] == (1..10) %}
           1
         {% else %}
           'a'

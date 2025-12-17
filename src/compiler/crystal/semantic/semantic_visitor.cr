@@ -536,29 +536,33 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     end
   end
 
-  # Validates annotation arguments against initialize overloads.
+  # Validates annotation arguments against initialize and self.new overloads.
   # Checks that field names exist and types are compatible (shallow check).
   private def validate_annotation_class_args(annotation_type : ClassType, ann : Annotation)
     init_defs = annotation_type.lookup_defs("initialize", lookup_ancestors_for_new: true)
+    new_defs = annotation_type.metaclass.lookup_defs("new", lookup_ancestors_for_new: true)
 
-    # If no initializers, any args are invalid
-    if init_defs.empty? && ann.has_any_args?
+    # Combine both constructor types, excluding private ones
+    all_constructors = (init_defs + new_defs).reject(&.visibility.private?)
+
+    # If no constructors, any args are invalid
+    if all_constructors.empty? && ann.has_any_args?
       ann.raise "#{annotation_type} has no constructor but annotation has arguments"
     end
 
-    return if init_defs.empty?
+    return if all_constructors.empty?
 
     # Validate positional args
     ann.args.each_with_index do |arg, index|
-      unless positional_arg_valid_in_any_overload?(init_defs, index, arg)
-        ann.raise "no overload of #{annotation_type}#initialize accepts positional argument at index #{index}"
+      unless positional_arg_valid_in_any_overload?(all_constructors, index, arg)
+        ann.raise "no overload of #{annotation_type}.new accepts positional argument at index #{index}"
       end
     end
 
     # Validate named args
     ann.named_args.try &.each do |named_arg|
-      unless named_arg_valid_in_any_overload?(init_defs, named_arg)
-        ann.raise "no overload of #{annotation_type}#initialize has parameter '#{named_arg.name}'"
+      unless named_arg_valid_in_any_overload?(all_constructors, named_arg)
+        ann.raise "no overload of #{annotation_type}.new has parameter '#{named_arg.name}'"
       end
     end
   end
