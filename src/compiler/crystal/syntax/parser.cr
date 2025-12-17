@@ -1828,18 +1828,70 @@ module Crystal
 
       name_location = @token.location
       name = parse_path
-      check StatementEnd
+      skip_space
+
+      # Parse optional superclass: < ParentPath
+      superclass = nil
+      if @token.type.op_lt?
+        next_token_skip_space_or_newline
+        superclass = parse_path
+        skip_space
+      end
+
+      # Parse fields until 'end'
+      fields = nil
       skip_statement_end
+
+      unless @token.keyword?(:end)
+        fields = [] of AnnotationField
+        while !@token.keyword?(:end)
+          fields << parse_annotation_field
+          skip_statement_end
+        end
+      end
 
       end_location = token_end_location
       check_ident :end
       next_token_skip_space
 
-      annotation_def = AnnotationDef.new name
+      annotation_def = AnnotationDef.new name, superclass, fields
       annotation_def.doc = doc
       annotation_def.name_location = name_location
       annotation_def.end_location = end_location
       annotation_def
+    end
+
+    def parse_annotation_field
+      location = @token.location
+
+      # Check for 'private' visibility modifier
+      visibility = Visibility::Public
+      if @token.keyword?(:private)
+        visibility = Visibility::Private
+        next_token_skip_space_or_newline
+      end
+
+      # Parse field name
+      check :IDENT
+      field_name = @token.value.to_s
+      next_token_skip_space
+
+      # Parse type restriction (required)
+      check :OP_COLON
+      next_token_skip_space_or_newline
+      restriction = parse_bare_proc_type
+
+      # Parse optional default value
+      default_value = nil
+      skip_space
+      if @token.type.op_eq?
+        next_token_skip_space_or_newline
+        default_value = parse_op_assign
+      end
+
+      field = AnnotationField.new(field_name, restriction, default_value, visibility)
+      field.location = location
+      field
     end
 
     def parse_parenthesized_expression

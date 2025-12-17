@@ -338,12 +338,36 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
 
     scope, name, type = lookup_type_def(node)
 
+    # Look up superclass if specified
+    superclass : AnnotationType? = nil
+    if node_superclass = node.superclass
+      superclass_type = lookup_type(node_superclass)
+      unless superclass_type.is_a?(AnnotationType)
+        node_superclass.raise "#{superclass_type} is not an annotation, it's a #{superclass_type.type_desc}"
+      end
+      superclass = superclass_type
+    end
+
+    # Convert AST fields to type system fields
+    fields : Array(AnnotationFieldDef)? = nil
+    if node_fields = node.fields
+      fields = node_fields.map do |field|
+        AnnotationFieldDef.new(
+          name: field.name,
+          restriction: field.restriction,
+          default_value: field.default_value,
+          visibility: field.visibility
+        )
+      end
+    end
+
     if type
       unless type.is_a?(AnnotationType)
         node.raise "#{type} is not an annotation, it's a #{type.type_desc}"
       end
+      # TODO: validate that superclass and fields match if reopening
     else
-      type = AnnotationType.new(@program, scope, name)
+      type = AnnotationType.new(@program, scope, name, superclass, fields)
       scope.types[name] = type
     end
 
@@ -351,7 +375,301 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
 
     attach_doc type, node, annotations
 
+    # Generate Instance class if the annotation has public fields
+    generate_annotation_instance_class(type) if type.has_public_fields?
+
     false
+  end
+
+  # Generates an Instance class for annotations with typed fields.
+  # For example, `annotation NotBlank; message : StringLiteral; end`
+  # generates `NotBlankInstance` class with a `message : String` getter.
+  # The Instance class is created in the same namespace as the annotation.
+  private def generate_annotation_instance_class(annotation_type : AnnotationType)
+    namespace = annotation_type.namespace
+    instance_name = "#{annotation_type.name}Instance"
+
+    # Determine superclass
+    parent_instance : NonGenericClassType? = nil
+    if superclass = annotation_type.superclass
+      if superclass.has_public_fields?
+        parent_instance = superclass.namespace.types["#{superclass.name}Instance"]?.as?(NonGenericClassType)
+      end
+    end
+    parent_instance ||= @program.reference
+
+    # Create the Instance class type directly
+    instance_class = NonGenericClassType.new(@program, namespace, instance_name, parent_instance)
+    namespace.types[instance_name] = instance_class
+
+    # Store reference in the annotation type
+    annotation_type.instance_class = instance_class
+
+    # Get only this annotation's own public fields (not inherited)
+    own_fields = annotation_type.fields.try(&.select { |f| !f.visibility.private? }) || [] of AnnotationFieldDef
+
+    # Declare instance variables with their types
+    own_fields.each do |field|
+      runtime_type = macro_type_to_runtime_type(field.restriction, field.default_value)
+      instance_class.declare_instance_var("@#{field.name}", runtime_type)
+    end
+
+    # Generate and process getter methods and initialize via AST
+    class_body = build_instance_class_body(own_fields, parent_instance != @program.reference, annotation_type.superclass)
+    class_def = ClassDef.new(Path.new([instance_name]), class_body, nil) # No superclass path needed, type already created
+    class_def.accept(self)
+  end
+
+  # Builds the body of the Instance class (getters and initialize)
+  private def build_instance_class_body(fields : Array(AnnotationFieldDef), has_parent : Bool, parent_annotation : AnnotationType?) : Expressions
+    body_nodes = [] of ASTNode
+
+    # Add getter methods
+    fields.each do |field|
+      getter_def = Def.new(field.name, body: InstanceVar.new("@#{field.name}"))
+      body_nodes << getter_def
+    end
+
+    # Build initialize method
+    init_def = build_instance_initialize(fields, has_parent, parent_annotation)
+    body_nodes << init_def
+
+    Expressions.new(body_nodes)
+  end
+
+  # Maps macro type restrictions to runtime types
+  # The default_value is used to extract element types for ArrayLiteral/HashLiteral
+  private def macro_type_to_runtime_type(restriction : ASTNode?, default_value : ASTNode? = nil) : Type
+    name = case restriction
+           when Path
+             restriction.names.join("::")
+           when nil
+             "String"
+           else
+             restriction.to_s
+           end
+
+    # Handle nilable types (ending with ?)
+    is_nilable = name.ends_with?("?")
+    name = name.rchop("?") if is_nilable
+
+    base_type = case name
+                when "StringLiteral"
+                  @program.string
+                when "BoolLiteral"
+                  @program.bool
+                when "NumberLiteral"
+                  @program.float64
+                when "CharLiteral"
+                  @program.char
+                when "SymbolLiteral"
+                  @program.symbol
+                when "NilLiteral"
+                  @program.nil
+                when "ArrayLiteral"
+                  element_type = extract_array_element_type(default_value)
+                  @program.array_of(element_type)
+                when "HashLiteral"
+                  key_type, value_type = extract_hash_types(default_value)
+                  @program.hash_of(key_type, value_type)
+                else
+                  @program.string
+                end
+
+    if is_nilable
+      @program.nilable(base_type).as(Type)
+    else
+      base_type
+    end
+  end
+
+  # Extracts the element type from an ArrayLiteral's 'of' clause
+  private def extract_array_element_type(default_value : ASTNode?) : Type
+    if default_value.is_a?(ArrayLiteral) && (of_type = default_value.of)
+      path_to_type(of_type)
+    else
+      @program.string
+    end
+  end
+
+  # Extracts key and value types from a HashLiteral's 'of' clause
+  private def extract_hash_types(default_value : ASTNode?) : {Type, Type}
+    if default_value.is_a?(HashLiteral) && (of_entry = default_value.of)
+      {path_to_type(of_entry.key), path_to_type(of_entry.value)}
+    else
+      {@program.string, @program.string}
+    end
+  end
+
+  # Converts a type path to a runtime Type
+  private def path_to_type(node : ASTNode) : Type
+    type_name = case node
+                when Path
+                  node.names.join("::")
+                else
+                  node.to_s
+                end
+
+    case type_name
+    when "String"  then @program.string
+    when "Int32"   then @program.int32
+    when "Int64"   then @program.int64
+    when "Float32" then @program.float32
+    when "Float64" then @program.float64
+    when "Bool"    then @program.bool
+    when "Char"    then @program.char
+    when "Symbol"  then @program.symbol
+    when "Nil"     then @program.nil
+    else
+      # Try to look up the type in the program
+      @program.types[type_name]? || @program.string
+    end
+  end
+
+  # Extracts the element type path from an ArrayLiteral's 'of' clause (for AST generation)
+  private def extract_array_element_path(default_value : ASTNode?) : ASTNode
+    if default_value.is_a?(ArrayLiteral) && (of_type = default_value.of)
+      of_type.clone
+    else
+      Path.new(["String"])
+    end
+  end
+
+  # Extracts key and value type paths from a HashLiteral's 'of' clause (for AST generation)
+  private def extract_hash_paths(default_value : ASTNode?) : {ASTNode, ASTNode}
+    if default_value.is_a?(HashLiteral) && (of_entry = default_value.of)
+      {of_entry.key.clone, of_entry.value.clone}
+    else
+      {Path.new(["String"]), Path.new(["String"])}
+    end
+  end
+
+  # Builds the initialize method for the Instance class
+  private def build_instance_initialize(fields : Array(AnnotationFieldDef), has_parent : Bool, parent_annotation : AnnotationType?) : Def
+    # Build args for initialize with inherited fields first
+    all_args = [] of Arg
+
+    # Add parent fields as args (if parent has fields)
+    if has_parent && parent_annotation
+      parent_fields = parent_annotation.all_fields.select { |f| !f.visibility.private? }
+      parent_fields.each do |field|
+        arg = Arg.new(field.name)
+        arg.restriction = macro_type_to_path(field.restriction, field.default_value)
+        if default = field.default_value
+          arg.default_value = convert_macro_literal_to_runtime(default)
+        end
+        all_args << arg
+      end
+    end
+
+    # Add own fields as args
+    fields.each do |field|
+      arg = Arg.new(field.name)
+      arg.restriction = macro_type_to_path(field.restriction, field.default_value)
+      if default = field.default_value
+        arg.default_value = convert_macro_literal_to_runtime(default)
+      end
+      all_args << arg
+    end
+
+    # Build the body
+    body_expressions = [] of ASTNode
+
+    # Call super with parent field values
+    if has_parent && parent_annotation
+      parent_fields = parent_annotation.all_fields.select { |f| !f.visibility.private? }
+      super_args = parent_fields.map { |f| Var.new(f.name).as(ASTNode) }
+      body_expressions << Call.new(nil, "super", super_args)
+    end
+
+    # Assign own fields
+    fields.each do |field|
+      body_expressions << Assign.new(InstanceVar.new("@#{field.name}"), Var.new(field.name))
+    end
+
+    # Ensure body is not empty
+    body = if body_expressions.empty?
+             Nop.new
+           elsif body_expressions.size == 1
+             body_expressions.first
+           else
+             Expressions.new(body_expressions)
+           end
+
+    Def.new("initialize", all_args, body)
+  end
+
+  # Maps macro type restrictions (like StringLiteral) to AST type nodes (like String)
+  # The default_value is used to extract element types for ArrayLiteral/HashLiteral
+  private def macro_type_to_path(restriction : ASTNode?, default_value : ASTNode? = nil) : ASTNode
+    name = case restriction
+           when Path
+             restriction.names.join("::")
+           when nil
+             "String" # Default
+           else
+             restriction.to_s
+           end
+
+    # Handle nilable types (ending with ?)
+    is_nilable = name.ends_with?("?")
+    name = name.rchop("?") if is_nilable
+
+    base_type : ASTNode = case name
+                          when "StringLiteral"
+                            Path.new(["String"])
+                          when "BoolLiteral"
+                            Path.new(["Bool"])
+                          when "NumberLiteral"
+                            Path.new(["Float64"])
+                          when "CharLiteral"
+                            Path.new(["Char"])
+                          when "SymbolLiteral"
+                            Path.new(["Symbol"])
+                          when "NilLiteral"
+                            Path.new(["Nil"])
+                          when "ArrayLiteral"
+                            element_path = extract_array_element_path(default_value)
+                            Generic.new(Path.new(["Array"]), [element_path] of ASTNode)
+                          when "HashLiteral"
+                            key_path, value_path = extract_hash_paths(default_value)
+                            Generic.new(Path.new(["Hash"]), [key_path, value_path] of ASTNode)
+                          else
+                            Path.new(["String"])
+                          end
+
+    if is_nilable
+      # Create a Union type: Type | Nil
+      Union.new([base_type, Path.new(["Nil"])] of ASTNode)
+    else
+      base_type
+    end
+  end
+
+  # Converts macro literal AST nodes to runtime equivalents for default values
+  private def convert_macro_literal_to_runtime(node : ASTNode) : ASTNode
+    case node
+    when StringLiteral, NumberLiteral, BoolLiteral, CharLiteral, SymbolLiteral, NilLiteral
+      node.clone
+    when ArrayLiteral
+      elements = node.elements.map { |e| convert_macro_literal_to_runtime(e) }
+      # Preserve the 'of' type specification
+      of_type = node.of.try(&.clone)
+      ArrayLiteral.new(elements, of: of_type)
+    when HashLiteral
+      entries = node.entries.map do |entry|
+        HashLiteral::Entry.new(
+          convert_macro_literal_to_runtime(entry.key),
+          convert_macro_literal_to_runtime(entry.value)
+        )
+      end
+      # Preserve the 'of' type specification
+      of_type = node.of.try { |o| HashLiteral::Entry.new(o.key.clone, o.value.clone) }
+      HashLiteral.new(entries, of: of_type)
+    else
+      # For complex expressions, just clone
+      node.clone
+    end
   end
 
   def visit(node : Alias)

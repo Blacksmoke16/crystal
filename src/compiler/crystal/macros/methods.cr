@@ -2717,10 +2717,25 @@ module Crystal
             raise "argument to [] must be a number, symbol or string, not #{arg.class_desc}:\n\n#{arg}"
           end
 
+          # First check if the value was provided in the annotation usage
           named_arg = self.named_args.try &.find do |named_arg|
             named_arg.name == name
           end
-          named_arg.try(&.value) || NilLiteral.new
+
+          if value = named_arg.try(&.value)
+            return value
+          end
+
+          # Fall back to the default value from the annotation type definition
+          annotation_type = interpreter.path_lookup.lookup_type?(@path, self_type: interpreter.scope, free_vars: interpreter.free_vars)
+          if annotation_type.is_a?(AnnotationType) && annotation_type.has_fields?
+            field = annotation_type.all_fields.find { |f| f.name == name }
+            if field && (default = field.default_value)
+              return default.clone
+            end
+          end
+
+          NilLiteral.new
         end
       when "args"
         interpret_check_args do
@@ -2730,9 +2745,59 @@ module Crystal
         interpret_check_args do
           get_named_annotation_args self
         end
+      when "to_runtime_representation"
+        interpret_check_args do
+          to_runtime_representation(interpreter)
+        end
       else
         super
       end
+    end
+
+    # Generates code to instantiate the annotation's runtime class.
+    # For example, @[NotBlank(message: "required")] becomes:
+    # NotBlank.new(message: "required", allow_nil: false, groups: [] of String)
+    private def to_runtime_representation(interpreter : Crystal::MacroInterpreter) : ASTNode
+      # Look up the annotation type
+      annotation_type = interpreter.path_lookup.lookup_type(@path, self_type: interpreter.scope, free_vars: interpreter.free_vars)
+
+      unless annotation_type.is_a?(AnnotationType)
+        raise "#{@path} is not an annotation type"
+      end
+
+      unless annotation_type.has_fields?
+        raise "annotation #{annotation_type} has no typed fields; to_runtime_representation requires typed fields"
+      end
+
+      all_fields = annotation_type.all_fields
+      provided_values = {} of String => ASTNode
+
+      # Collect values from the annotation's named args
+      self.named_args.try &.each do |named_arg|
+        provided_values[named_arg.name] = named_arg.value
+      end
+
+      # Build named arguments for the Call, using provided values or defaults
+      call_named_args = [] of NamedArgument
+      all_fields.each do |field|
+        # Skip private fields - they don't appear on the runtime class
+        next if field.visibility.private?
+
+        value = provided_values[field.name]? || field.default_value
+        unless value
+          raise "missing value for required field '#{field.name}' in annotation #{annotation_type}"
+        end
+
+        call_named_args << NamedArgument.new(field.name, value.clone)
+      end
+
+      # Build the Call: AnnotationNameInstance.new(field1: value1, ...)
+      # The Instance class is auto-generated with suffix naming in the same namespace
+      instance_path = @path.clone
+      # Add "Instance" suffix to the last name component
+      last_name = instance_path.names.last
+      instance_path.names = instance_path.names[0...-1] + ["#{last_name}Instance"]
+      Call.new(instance_path, "new", named_args: call_named_args)
     end
   end
 

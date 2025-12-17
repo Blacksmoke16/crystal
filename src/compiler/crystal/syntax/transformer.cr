@@ -258,7 +258,15 @@ module Crystal
       node
     end
 
+    def transform(node : AnnotationField)
+      node.restriction = node.restriction.try &.transform(self)
+      node.default_value = node.default_value.try &.transform(self)
+      node
+    end
+
     def transform(node : AnnotationDef)
+      node.superclass = node.superclass.try &.transform(self).as(Path)
+      node.fields.try &.map! &.transform(self).as(AnnotationField)
       node
     end
 

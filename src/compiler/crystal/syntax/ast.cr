@@ -1561,29 +1561,61 @@ module Crystal
     def_equals_and_hash @name, @body, @type_vars, @splat_index
   end
 
+  # A field definition within an annotation:
+  #
+  #     ['private'] name ':' type ['=' default]
+  #
+  class AnnotationField < ASTNode
+    property name : String
+    property restriction : ASTNode?
+    property default_value : ASTNode?
+    property visibility : Visibility
+
+    def initialize(@name : String, @restriction : ASTNode? = nil, @default_value : ASTNode? = nil, @visibility : Visibility = Visibility::Public)
+    end
+
+    def accept_children(visitor)
+      # Annotation fields are compile-time only - don't visit children
+      # to avoid codegen visiting untyped AST nodes. The formatter and
+      # transformer have explicit visit/transform methods for these nodes.
+    end
+
+    def clone_without_location
+      AnnotationField.new(@name, @restriction.clone, @default_value.clone, @visibility)
+    end
+
+    def_equals_and_hash name, restriction, default_value, visibility
+  end
+
   # Annotation definition:
   #
-  #     'annotation' name
+  #     'annotation' name ['<' superclass]
+  #       [fields...]
   #     'end'
   #
   class AnnotationDef < ASTNode
     property name : Path
+    property superclass : Path?
+    property fields : Array(AnnotationField)?
     property doc : String?
     property name_location : Location?
 
-    def initialize(@name)
+    def initialize(@name, @superclass : Path? = nil, @fields : Array(AnnotationField)? = nil)
     end
 
     def accept_children(visitor)
+      # Annotation definitions are compile-time only - don't visit children
+      # to avoid codegen visiting untyped AST nodes. The formatter and
+      # transformer have explicit visit/transform methods for these nodes.
     end
 
     def clone_without_location
-      clone = AnnotationDef.new(@name)
+      clone = AnnotationDef.new(@name.clone, @superclass.clone, @fields.clone)
       clone.name_location = name_location
       clone
     end
 
-    def_equals_and_hash @name
+    def_equals_and_hash @name, @superclass, @fields
   end
 
   # While expression.

@@ -1,6 +1,9 @@
 module Crystal
   class MacroInterpreter < Visitor
     getter last : ASTNode
+    getter program : Program
+    getter path_lookup : Type
+    getter scope : Type
     property free_vars : Hash(String, TypeVar)?
     property macro_expansion_pragmas : Hash(Int32, Array(Lexer::LocPragma))? = nil
 

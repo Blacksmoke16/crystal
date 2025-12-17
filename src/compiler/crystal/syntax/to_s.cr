@@ -456,11 +456,43 @@ module Crystal
       false
     end
 
+    def visit(node : AnnotationField)
+      if node.visibility.private?
+        @str << "private "
+      end
+      @str << node.name
+      if restriction = node.restriction
+        @str << " : "
+        restriction.accept self
+      end
+      if default_value = node.default_value
+        @str << " = "
+        default_value.accept self
+      end
+      false
+    end
+
     def visit(node : AnnotationDef)
       @str << "annotation "
       node.name.accept self
-      newline
-      append_indent
+      if superclass = node.superclass
+        @str << " < "
+        superclass.accept self
+      end
+      if fields = node.fields
+        newline
+        with_indent do
+          fields.each do |field|
+            append_indent
+            field.accept self
+            newline
+          end
+        end
+        append_indent
+      else
+        newline
+        append_indent
+      end
       @str << "end"
       false
     end

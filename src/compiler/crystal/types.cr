@@ -2878,7 +2878,60 @@ module Crystal
     end
   end
 
+  # Represents a field definition within an annotation type.
+  record AnnotationFieldDef,
+    name : String,
+    restriction : ASTNode?,
+    default_value : ASTNode?,
+    visibility : Visibility
+
   class AnnotationType < NamedType
+    getter superclass : AnnotationType?
+    getter fields : Array(AnnotationFieldDef)?
+    # Reference to the auto-generated runtime Instance class (e.g., NotBlankInstance)
+    property instance_class : NonGenericClassType?
+
+    def initialize(program, namespace, name, @superclass : AnnotationType? = nil, @fields : Array(AnnotationFieldDef)? = nil)
+      super(program, namespace, name)
+    end
+
+    # Returns all fields including inherited ones from superclass chain.
+    # Fields are returned in order: parent fields first, then own fields.
+    def all_fields : Array(AnnotationFieldDef)
+      result = [] of AnnotationFieldDef
+      if sup = @superclass
+        result.concat(sup.all_fields)
+      end
+      if own_fields = @fields
+        result.concat(own_fields)
+      end
+      result
+    end
+
+    # Returns whether this annotation has any fields defined (including inherited).
+    def has_fields? : Bool
+      return true if @fields && !@fields.try(&.empty?)
+      @superclass.try(&.has_fields?) || false
+    end
+
+    # Returns whether this annotation has any public (non-private) fields.
+    def has_public_fields? : Bool
+      if own_fields = @fields
+        return true if own_fields.any? { |f| !f.visibility.private? }
+      end
+      @superclass.try(&.has_public_fields?) || false
+    end
+
+    # Returns whether this annotation type inherits from the given annotation type.
+    def inherits_from?(other : AnnotationType) : Bool
+      current = @superclass
+      while current
+        return true if current == other
+        current = current.superclass
+      end
+      false
+    end
+
     def type_desc
       "annotation"
     end

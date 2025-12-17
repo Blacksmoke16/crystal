@@ -10,14 +10,49 @@ module Crystal
       annotations[annotation_type] << value
     end
 
-    # Returns the last defined annotation with the given type, if any, or `nil` otherwise
+    # Returns the last defined annotation with the given type, if any, or `nil` otherwise.
+    # Also returns annotations whose type inherits from annotation_type.
     def annotation(annotation_type : AnnotationType) : Annotation?
-      @annotations.try &.[annotation_type]?.try &.last?
+      annotations = @annotations
+      return nil unless annotations
+
+      # First check for exact match
+      if exact = annotations[annotation_type]?.try(&.last?)
+        return exact
+      end
+
+      # Check for child annotations (annotations whose type inherits from annotation_type)
+      annotations.each do |type, anns|
+        if type.inherits_from?(annotation_type)
+          return anns.last?
+        end
+      end
+
+      nil
     end
 
-    # Returns all annotations with the given type, if any, or `nil` otherwise
+    # Returns all annotations with the given type, if any, or `nil` otherwise.
+    # Also returns annotations whose type inherits from annotation_type.
     def annotations(annotation_type : AnnotationType) : Array(Annotation)?
-      @annotations.try &.[annotation_type]?
+      annotations = @annotations
+      return nil unless annotations
+
+      result = [] of Annotation
+
+      # Collect exact matches
+      if exact = annotations[annotation_type]?
+        result.concat(exact)
+      end
+
+      # Collect child annotations (annotations whose type inherits from annotation_type)
+      annotations.each do |type, anns|
+        next if type == annotation_type # Already added
+        if type.inherits_from?(annotation_type)
+          result.concat(anns)
+        end
+      end
+
+      result.empty? ? nil : result
     end
 
     # Returns all annotations on this type, if any, or `nil` otherwise

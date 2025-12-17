@@ -3511,6 +3511,13 @@ module Crystal
 
       accept node.name
 
+      if superclass = node.superclass
+        skip_space_or_newline
+        write_token " ", :OP_LT, " "
+        skip_space_or_newline
+        accept superclass
+      end
+
       skip_space(@indent + 2)
 
       if @token.type.op_semicolon?
@@ -3519,13 +3526,58 @@ module Crystal
         write "; end"
       else
         skip_space_or_newline
-        check_end
-        write_line
-        write_indent
-        write "end"
+        if fields = node.fields
+          write_line
+          fields.each do |field|
+            write_indent(@indent + 2)
+            accept field
+            skip_space_or_newline
+          end
+          skip_space_or_newline(@indent + 2, last: true)
+          check_end
+          write_indent
+          write "end"
+        else
+          check_end
+          write_line
+          write_indent
+          write "end"
+        end
       end
 
       next_token
+      false
+    end
+
+    def visit(node : AnnotationField)
+      if node.visibility.private?
+        write_keyword :private, " "
+      end
+
+      write node.name
+      next_token
+
+      if restriction = node.restriction
+        skip_space_or_newline
+        write_token " ", :OP_COLON, " "
+        skip_space_or_newline
+        accept restriction
+      end
+
+      if default_value = node.default_value
+        skip_space_or_newline
+        write_token " ", :OP_EQ, " "
+        skip_space_or_newline
+        accept default_value
+      end
+
+      skip_space
+
+      if @token.type.newline? || @token.type.op_semicolon?
+        write_line
+        next_token
+      end
+
       false
     end
 

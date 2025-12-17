@@ -525,6 +525,39 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
       # ditto DeprecatedAnnotation
       ExperimentalAnnotation.from(ann)
     end
+
+    # Validate annotation against defined fields (if any)
+    validate_annotation_fields(annotation_type, ann)
+  end
+
+  def validate_annotation_fields(annotation_type : AnnotationType, ann : Annotation)
+    return unless annotation_type.has_fields?
+
+    all_fields = annotation_type.all_fields
+    field_names = all_fields.map(&.name).to_set
+    provided_fields = Set(String).new
+
+    # Check positional arguments - not allowed when fields are defined
+    if !ann.args.empty?
+      ann.raise "annotation #{annotation_type} has typed fields; use named arguments instead of positional arguments"
+    end
+
+    # Check named arguments match defined fields
+    ann.named_args.try &.each do |named_arg|
+      field_name = named_arg.name
+      unless field_names.includes?(field_name)
+        ann.raise "unknown field '#{field_name}' for annotation #{annotation_type}"
+      end
+      provided_fields << field_name
+    end
+
+    # Check that required fields (those without defaults) are provided
+    all_fields.each do |field|
+      next if field.default_value # Has default, not required
+      unless provided_fields.includes?(field.name)
+        ann.raise "missing required field '#{field.name}' for annotation #{annotation_type}"
+      end
+    end
   end
 
   private def annotations_doc(annotations)
