@@ -547,22 +547,29 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
 
     # If no constructors, any args are invalid
     if all_constructors.empty? && ann.has_any_args?
-      ann.raise "#{annotation_type} has no constructor but annotation has arguments"
+      ann.raise "@[#{annotation_type}] has arguments but #{annotation_type} has no constructor"
     end
 
     return if all_constructors.empty?
 
+    # If annotation has no args, check that at least one constructor accepts zero args
+    if !ann.has_any_args?
+      unless any_constructor_accepts_zero_args?(all_constructors)
+        ann.raise "@[#{annotation_type}] is missing required arguments"
+      end
+    end
+
     # Validate positional args
     ann.args.each_with_index do |arg, index|
       unless positional_arg_valid_in_any_overload?(all_constructors, index, arg)
-        ann.raise "no overload of #{annotation_type}.new accepts positional argument at index #{index}"
+        arg.raise "@[#{annotation_type}] argument at position #{index} doesn't match any constructor parameter"
       end
     end
 
     # Validate named args
     ann.named_args.try &.each do |named_arg|
       unless named_arg_valid_in_any_overload?(all_constructors, named_arg)
-        ann.raise "no overload of #{annotation_type}.new has parameter '#{named_arg.name}'"
+        named_arg.raise "@[#{annotation_type}] has no parameter '#{named_arg.name}'"
       end
     end
   end
@@ -599,6 +606,18 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
       param = init_def.args.find { |arg| arg.external_name == named_arg.name }
       param ||= init_def.double_splat # double splat accepts any named arg
       param && literal_matches_restriction?(named_arg.value, param.restriction)
+    end
+  end
+
+  # Checks if any constructor can be called with zero arguments
+  private def any_constructor_accepts_zero_args?(constructors : Array(Def)) : Bool
+    constructors.any? do |constructor|
+      constructor.args.each_with_index.all? do |arg, index|
+        # Splat args don't require values
+        next true if index == constructor.splat_index
+        # Args with defaults don't require values
+        arg.default_value
+      end
     end
   end
 

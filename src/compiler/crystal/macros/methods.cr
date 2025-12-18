@@ -2737,7 +2737,7 @@ module Crystal
         interpret_check_args do
           get_named_annotation_args self
         end
-      when "to_runtime_representation"
+      when "new_instance"
         interpret_check_args do
           Call.new(@path.clone, "new", args: @args.clone, named_args: @named_args.clone)
         end

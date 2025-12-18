@@ -1382,7 +1382,7 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
-    it "to_runtime_representation generates .new call" do
+    it "new_instance generates .new call" do
       assert_type(<<-CRYSTAL) { types["NotBlank"] }
         annotation class NotBlank
           def initialize(@message : String = "cannot be blank")
@@ -1398,12 +1398,12 @@ describe "Semantic: annotation" do
         end
 
         {% begin %}
-          {{ Foo.annotation(NotBlank).to_runtime_representation }}
+          {{ Foo.annotation(NotBlank).new_instance }}
         {% end %}
         CRYSTAL
     end
 
-    it "to_runtime_representation passes named args" do
+    it "new_instance passes named args" do
       assert_type(<<-CRYSTAL) { string }
         annotation class NotBlank
           def initialize(@message : String = "cannot be blank")
@@ -1419,7 +1419,7 @@ describe "Semantic: annotation" do
         end
 
         {% begin %}
-          {{ Foo.annotation(NotBlank).to_runtime_representation }}.message
+          {{ Foo.annotation(NotBlank).new_instance }}.message
         {% end %}
         CRYSTAL
     end
@@ -1446,7 +1446,7 @@ describe "Semantic: annotation" do
 
     # Validation tests
     it "validates named arg exists in initialize" do
-      assert_error <<-CRYSTAL, "no overload of Foo.new has parameter 'unknown'"
+      assert_error <<-CRYSTAL, "@[Foo] has no parameter 'unknown'"
         annotation class Foo
           def initialize(@message : String)
           end
@@ -1459,7 +1459,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates positional arg count" do
-      assert_error <<-CRYSTAL, "no overload of Foo.new accepts positional argument at index 1"
+      assert_error <<-CRYSTAL, "@[Foo] argument at position 1 doesn't match any constructor parameter"
         annotation class Foo
           def initialize(@message : String)
           end
@@ -1472,7 +1472,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates named arg type (string vs number)" do
-      assert_error <<-CRYSTAL, "no overload of Foo.new has parameter 'message'"
+      assert_error <<-CRYSTAL, "@[Foo] has no parameter 'message'"
         annotation class Foo
           def initialize(@message : String)
           end
@@ -1485,7 +1485,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates positional arg type" do
-      assert_error <<-CRYSTAL, "no overload of Foo.new accepts positional argument at index 0"
+      assert_error <<-CRYSTAL, "@[Foo] argument at position 0 doesn't match any constructor parameter"
         annotation class Foo
           def initialize(@count : Int32)
           end
@@ -1559,13 +1559,26 @@ describe "Semantic: annotation" do
     end
 
     it "validates union type mismatch" do
-      assert_error <<-CRYSTAL, "no overload of Foo.new accepts positional argument at index 0"
+      assert_error <<-CRYSTAL, "@[Foo] argument at position 0 doesn't match any constructor parameter"
         annotation class Foo
           def initialize(@value : String | Int32)
           end
         end
 
         @[Foo(:symbol)]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "rejects no args when initialize requires arguments" do
+      assert_error <<-CRYSTAL, "@[Foo] is missing required arguments"
+        annotation class Foo
+          def initialize(@message : String)
+          end
+        end
+
+        @[Foo]
         class Bar
         end
         CRYSTAL
@@ -1617,7 +1630,7 @@ describe "Semantic: annotation" do
     end
 
     it "errors when no args but initialize requires them" do
-      assert_error <<-CRYSTAL, "Foo has no constructor but annotation has arguments"
+      assert_error <<-CRYSTAL, "@[Foo] has arguments but Foo has no constructor"
         annotation class Foo
         end
 
@@ -1765,7 +1778,7 @@ describe "Semantic: annotation" do
     end
 
     it "does not allow providing a parent initializer's params when child defines own" do
-      assert_error <<-CRYSTAL, "no overload of Child.new has parameter 'message'"
+      assert_error <<-CRYSTAL, "@[Child] has no parameter 'message'"
           abstract annotation class Parent
             def initialize(@message : String)
             end
@@ -1833,7 +1846,7 @@ describe "Semantic: annotation" do
     end
 
     it "rejects args not matching any self.new or initialize" do
-      assert_error <<-CRYSTAL, "no overload of Size.new has parameter 'invalid'"
+      assert_error <<-CRYSTAL, "@[Size] has no parameter 'invalid'"
         annotation class Size
           def self.new(range : Range(Int32, Int32))
             new range.begin, range.end
@@ -1873,7 +1886,7 @@ describe "Semantic: annotation" do
     end
 
     it "rejects private initialize params when self.new exists" do
-      assert_error <<-CRYSTAL, "no overload of Size.new accepts positional argument at index 0"
+      assert_error <<-CRYSTAL, "@[Size] argument at position 0 doesn't match any constructor parameter"
         annotation class Size
           def self.new(range : Range(Int32, Int32))
             new range.begin, range.end
