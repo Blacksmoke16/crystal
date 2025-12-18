@@ -3445,41 +3445,41 @@ module Crystal
 
     describe "annotation methods" do
       it "executes name" do
-        assert_macro %({{x.name}}), %(Foo), {x: Annotation.new(Path.new("Foo"))}
-        assert_macro %({{x.name}}), %(Foo::Bar), {x: Annotation.new(Path.new("Foo", "Bar"))}
+        assert_macro %({{x.name}}), %(Foo), {x: Crystal::Annotation.new(Path.new("Foo"))}
+        assert_macro %({{x.name}}), %(Foo::Bar), {x: Crystal::Annotation.new(Path.new("Foo", "Bar"))}
       end
 
       it "executes [] with NumberLiteral" do
         assert_macro %({{x[y]}}), %(42), {
-          x: Annotation.new(Path.new("Foo"), [42.int32] of ASTNode),
+          x: Crystal::Annotation.new(Path.new("Foo"), [42.int32] of ASTNode),
           y: 0.int32,
         }
       end
 
       it "executes [] with SymbolLiteral" do
         assert_macro %({{x[y]}}), %(42), {
-          x: Annotation.new(Path.new("Foo"), [] of ASTNode, [NamedArgument.new("foo", 42.int32)]),
+          x: Crystal::Annotation.new(Path.new("Foo"), [] of ASTNode, [NamedArgument.new("foo", 42.int32)]),
           y: "foo".symbol,
         }
       end
 
       it "executes [] with StringLiteral" do
         assert_macro %({{x[y]}}), %(42), {
-          x: Annotation.new(Path.new("Foo"), [] of ASTNode, [NamedArgument.new("foo", 42.int32)]),
+          x: Crystal::Annotation.new(Path.new("Foo"), [] of ASTNode, [NamedArgument.new("foo", 42.int32)]),
           y: "foo".string,
         }
       end
 
       it "executes [] with MacroId" do
         assert_macro %({{x[y]}}), %(42), {
-          x: Annotation.new(Path.new("Foo"), [] of ASTNode, [NamedArgument.new("foo", 42.int32)]),
+          x: Crystal::Annotation.new(Path.new("Foo"), [] of ASTNode, [NamedArgument.new("foo", 42.int32)]),
           y: MacroId.new("foo"),
         }
       end
 
       it "executes [] with other ASTNode, but raises an error" do
         assert_macro_error %({{x[y]}}), "argument to [] must be a number, symbol or string, not BoolLiteral", {
-          x: Annotation.new(Path.new("Foo"), [] of ASTNode),
+          x: Crystal::Annotation.new(Path.new("Foo"), [] of ASTNode),
           y: true.bool,
         }
       end
@@ -4143,7 +4143,7 @@ module Crystal
 
   describe "immutability of returned container literals (#10818)" do
     it "Annotation#args" do
-      node = Annotation.new(Path.new("Foo"), [42.int32, "a".string] of ASTNode)
+      node = Crystal::Annotation.new(Path.new("Foo"), [42.int32, "a".string] of ASTNode)
       assert_macro %({{ (x.args << "a"; x.args.size) }}), "2", {x: node}
     end
 

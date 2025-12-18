@@ -53,6 +53,16 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
 
     annotations = read_annotations
 
+    # Check for @[Annotation] meta-annotation
+    annotations.try &.reject! do |ann|
+      if ann.path.single?("Annotation")
+        node.annotation = true
+        true # remove from list
+      else
+        false # keep in list
+      end
+    end
+
     special_type = nil
     process_annotations(annotations) do |annotation_type, ann|
       case annotation_type

@@ -3531,7 +3531,6 @@ module Crystal
 
     def visit(node : ClassDef)
       write_keyword :abstract, " " if node.abstract?
-      write_keyword :annotation, " " if node.annotation?
       write_keyword (node.struct? ? Keyword::STRUCT : Keyword::CLASS), " "
 
       accept node.name

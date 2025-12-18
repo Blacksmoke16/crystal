@@ -1274,10 +1274,11 @@ describe "Semantic: annotation" do
       CRYSTAL
   end
 
-  describe "annotation class" do
-    it "declares annotation class" do
+  describe "@[Annotation] class" do
+    it "declares @[Annotation] class" do
       result = semantic(<<-CRYSTAL)
-        annotation class Foo
+        @[Annotation]
+        class Foo
         end
         CRYSTAL
 
@@ -1287,9 +1288,10 @@ describe "Semantic: annotation" do
       type.name.should eq("Foo")
     end
 
-    it "declares annotation struct" do
+    it "declares @[Annotation] struct" do
       result = semantic(<<-CRYSTAL)
-        annotation struct Foo
+        @[Annotation]
+        struct Foo
         end
         CRYSTAL
 
@@ -1299,9 +1301,10 @@ describe "Semantic: annotation" do
       type.as(ClassType).struct?.should be_true
     end
 
-    it "declares abstract annotation class" do
+    it "declares @[Annotation] abstract class" do
       result = semantic(<<-CRYSTAL)
-        abstract annotation class Foo
+        @[Annotation]
+        abstract class Foo
         end
         CRYSTAL
 
@@ -1311,9 +1314,10 @@ describe "Semantic: annotation" do
       type.as(ClassType).abstract?.should be_true
     end
 
-    it "allows using annotation class as @[Foo]" do
+    it "allows using @[Annotation] class as @[Foo]" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
         end
 
         @[Foo]
@@ -1328,22 +1332,26 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
-    it "allows annotation class inheritance" do
+    it "allows @[Annotation] class inheritance" do
       assert_no_errors <<-CRYSTAL
-        abstract annotation class Constraint
+        @[Annotation]
+        abstract class Constraint
         end
 
-        annotation class NotBlank < Constraint
+        @[Annotation]
+        class NotBlank < Constraint
         end
         CRYSTAL
     end
 
     it "finds child annotations via parent type" do
       assert_type(<<-CRYSTAL) { int32 }
-        abstract annotation class Constraint
+        @[Annotation]
+        abstract class Constraint
         end
 
-        annotation class NotBlank < Constraint
+        @[Annotation]
+        class NotBlank < Constraint
         end
 
         @[NotBlank]
@@ -1360,13 +1368,16 @@ describe "Semantic: annotation" do
 
     it "finds all child annotations via parent type" do
       assert_type(<<-CRYSTAL) { int32 }
-        abstract annotation class Constraint
+        @[Annotation]
+        abstract class Constraint
         end
 
-        annotation class NotBlank < Constraint
+        @[Annotation]
+        class NotBlank < Constraint
         end
 
-        annotation class Length < Constraint
+        @[Annotation]
+        class Length < Constraint
         end
 
         @[NotBlank]
@@ -1384,7 +1395,8 @@ describe "Semantic: annotation" do
 
     it "new_instance generates .new call" do
       assert_type(<<-CRYSTAL) { types["NotBlank"] }
-        annotation class NotBlank
+        @[Annotation]
+        class NotBlank
           def initialize(@message : String = "cannot be blank")
           end
 
@@ -1405,7 +1417,8 @@ describe "Semantic: annotation" do
 
     it "new_instance passes named args" do
       assert_type(<<-CRYSTAL) { string }
-        annotation class NotBlank
+        @[Annotation]
+        class NotBlank
           def initialize(@message : String = "cannot be blank")
           end
 
@@ -1429,14 +1442,16 @@ describe "Semantic: annotation" do
         class Foo
         end
 
-        annotation class Foo
+        @[Annotation]
+        class Foo
         end
         CRYSTAL
     end
 
     it "errors when reopening annotation class as non-annotation class" do
       assert_error <<-CRYSTAL, "Foo is not an annotation class"
-        annotation class Foo
+        @[Annotation]
+        class Foo
         end
 
         class Foo
@@ -1447,7 +1462,8 @@ describe "Semantic: annotation" do
     # Validation tests
     it "validates named arg exists in initialize" do
       assert_error <<-CRYSTAL, "@[Foo] has no parameter 'unknown'"
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String)
           end
         end
@@ -1460,7 +1476,8 @@ describe "Semantic: annotation" do
 
     it "validates positional arg count" do
       assert_error <<-CRYSTAL, "@[Foo] argument at position 1 doesn't match any constructor parameter"
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String)
           end
         end
@@ -1473,7 +1490,8 @@ describe "Semantic: annotation" do
 
     it "validates named arg type (string vs number)" do
       assert_error <<-CRYSTAL, "@[Foo] has no parameter 'message'"
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String)
           end
         end
@@ -1486,7 +1504,8 @@ describe "Semantic: annotation" do
 
     it "validates positional arg type" do
       assert_error <<-CRYSTAL, "@[Foo] argument at position 0 doesn't match any constructor parameter"
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@count : Int32)
           end
         end
@@ -1499,7 +1518,8 @@ describe "Semantic: annotation" do
 
     it "accepts valid args with correct types" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String, @count : Int32)
           end
         end
@@ -1518,7 +1538,8 @@ describe "Semantic: annotation" do
 
     it "accepts valid named args" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String, @count : Int32 = 0)
           end
         end
@@ -1537,7 +1558,8 @@ describe "Semantic: annotation" do
 
     it "accepts union types" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@value : String | Int32)
           end
         end
@@ -1560,7 +1582,8 @@ describe "Semantic: annotation" do
 
     it "validates union type mismatch" do
       assert_error <<-CRYSTAL, "@[Foo] argument at position 0 doesn't match any constructor parameter"
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@value : String | Int32)
           end
         end
@@ -1573,7 +1596,8 @@ describe "Semantic: annotation" do
 
     it "rejects no args when initialize requires arguments" do
       assert_error <<-CRYSTAL, "@[Foo] is missing required arguments"
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String)
           end
         end
@@ -1586,7 +1610,8 @@ describe "Semantic: annotation" do
 
     it "accepts no args when initialize has defaults" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String = "default")
           end
         end
@@ -1605,7 +1630,8 @@ describe "Semantic: annotation" do
 
     it "validates with multiple overloads - accepts if any matches" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String, @count : Int32 = 0)
           end
 
@@ -1631,7 +1657,8 @@ describe "Semantic: annotation" do
 
     it "errors when no args but initialize requires them" do
       assert_error <<-CRYSTAL, "@[Foo] has arguments but Foo has no constructor"
-        annotation class Foo
+        @[Annotation]
+        class Foo
         end
 
         @[Foo("arg")]
@@ -1642,7 +1669,8 @@ describe "Semantic: annotation" do
 
     it "accepts double splat for any named args" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(**options)
           end
         end
@@ -1661,7 +1689,8 @@ describe "Semantic: annotation" do
 
     it "accepts array literal for Array type" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@items : Array(String))
           end
         end
@@ -1680,7 +1709,8 @@ describe "Semantic: annotation" do
 
     it "accepts hash literal for Hash type" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@map : Hash(String, Int32))
           end
         end
@@ -1700,7 +1730,8 @@ describe "Semantic: annotation" do
     # Default value tests
     it "ann[:field] returns default from initialize when not explicitly set" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String = "default_message")
           end
         end
@@ -1719,7 +1750,8 @@ describe "Semantic: annotation" do
 
     it "ann[:field] returns explicit value over default" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String = "default_message")
           end
         end
@@ -1738,7 +1770,8 @@ describe "Semantic: annotation" do
 
     it "ann[:field] returns nil for non-existent field without default" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@message : String)
           end
         end
@@ -1757,7 +1790,8 @@ describe "Semantic: annotation" do
 
     it "ann[:field] returns default from any overload" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def initialize(@count : Int32, @message : String = "from_int")
           end
 
@@ -1779,12 +1813,14 @@ describe "Semantic: annotation" do
 
     it "does not allow providing a parent initializer's params when child defines own" do
       assert_error <<-CRYSTAL, "@[Child] has no parameter 'message'"
-          abstract annotation class Parent
+          @[Annotation]
+        abstract class Parent
             def initialize(@message : String)
             end
           end
 
-          annotation class Child < Parent
+          @[Annotation]
+        class Child < Parent
             def initialize(@id : Int32)
               super "foo"
             end
@@ -1798,12 +1834,14 @@ describe "Semantic: annotation" do
 
     it "accepts parent's initialize params when child has no initialize" do
       assert_type(<<-CRYSTAL) { int32 }
-        abstract annotation class Parent
+        @[Annotation]
+        abstract class Parent
           def initialize(@message : String)
           end
         end
 
-        annotation class Child < Parent
+        @[Annotation]
+        class Child < Parent
           def initialize(@id : Int32)
             super "foo"
           end
@@ -1824,7 +1862,8 @@ describe "Semantic: annotation" do
     # self.new validation tests
     it "validates against self.new parameters" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Size
+        @[Annotation]
+        class Size
           def self.new(range : Range(Int32, Int32))
             new range.begin, range.end
           end
@@ -1847,7 +1886,8 @@ describe "Semantic: annotation" do
 
     it "rejects args not matching any self.new or initialize" do
       assert_error <<-CRYSTAL, "@[Size] has no parameter 'invalid'"
-        annotation class Size
+        @[Annotation]
+        class Size
           def self.new(range : Range(Int32, Int32))
             new range.begin, range.end
           end
@@ -1864,7 +1904,8 @@ describe "Semantic: annotation" do
 
     it "accepts self.new positional arg even if initialize is private" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Size
+        @[Annotation]
+        class Size
           def self.new(range : Range(Int32, Int32))
             new range.begin, range.end
           end
@@ -1887,7 +1928,8 @@ describe "Semantic: annotation" do
 
     it "rejects private initialize params when self.new exists" do
       assert_error <<-CRYSTAL, "@[Size] argument at position 0 doesn't match any constructor parameter"
-        annotation class Size
+        @[Annotation]
+        class Size
           def self.new(range : Range(Int32, Int32))
             new range.begin, range.end
           end
@@ -1904,7 +1946,8 @@ describe "Semantic: annotation" do
 
     it "gets default value from self.new parameter" do
       assert_type(<<-CRYSTAL) { int32 }
-        annotation class Foo
+        @[Annotation]
+        class Foo
           def self.new(range : Range(Int32, Int32) = 1..10)
             new range.begin, range.end
           end

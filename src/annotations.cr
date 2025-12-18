@@ -90,3 +90,40 @@ end
 # ```
 annotation Experimental
 end
+
+# This annotation marks a class or struct as an annotation type.
+#
+# Classes or structs marked with `@[Annotation]` can be used as annotations
+# on other types, methods, and other declarations. The class's constructor
+# parameters define the annotation's accepted arguments.
+#
+# ```
+# @[Annotation]
+# class MyAnnotation
+#   def initialize(@name : String, @count : Int32 = 0)
+#   end
+# end
+#
+# @[MyAnnotation("example", count: 5)]
+# class Foo
+# end
+#
+# {% begin %}
+#   {% ann = Foo.annotation(MyAnnotation) %}
+#   {% puts ann[:name] %}  # => "example"
+#   {% puts ann[:count] %} # => 5
+# {% end %}
+# ```
+#
+# The annotation validates that argument names and types match the constructor
+# parameters. Use `#new_instance` in macros to instantiate the annotation
+# at runtime:
+#
+# ```
+# {{ Foo.annotation(MyAnnotation).new_instance }} # => MyAnnotation(@name="example", @count=5)
+# ```
+#
+# Annotation classes can inherit from other annotation classes, enabling
+# polymorphic annotation lookups.
+annotation Annotation
+end

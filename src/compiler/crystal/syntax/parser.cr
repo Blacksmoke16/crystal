@@ -1101,16 +1101,6 @@ module Crystal
                   parse_class_def is_abstract: true, doc: doc
                 when Keyword::STRUCT
                   parse_class_def is_abstract: true, is_struct: true, doc: doc
-                when Keyword::ANNOTATION
-                  next_token_skip_space_or_newline
-                  case @token.value
-                  when Keyword::CLASS
-                    parse_class_def is_abstract: true, is_annotation: true, doc: doc
-                  when Keyword::STRUCT
-                    parse_class_def is_abstract: true, is_struct: true, is_annotation: true, doc: doc
-                  else
-                    unexpected_token
-                  end
                 else
                   unexpected_token
                 end
@@ -1229,16 +1219,7 @@ module Crystal
           when .annotation?
             check_type_declaration do
               check_not_inside_def("can't define annotation") do
-                doc = @token.doc
-                next_token_skip_space_or_newline
-                case @token.value
-                when Keyword::CLASS
-                  parse_class_def is_annotation: true, doc: doc
-                when Keyword::STRUCT
-                  parse_class_def is_struct: true, is_annotation: true, doc: doc
-                else
-                  parse_annotation_def_name
-                end
+                parse_annotation_def
               end
             end
           else
