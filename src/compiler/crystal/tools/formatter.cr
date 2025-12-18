@@ -4176,7 +4176,25 @@ module Crystal
     end
 
     def visit(node : Alias)
-      format_alias_or_typedef node, :alias, node.value
+      write_keyword :alias, " "
+
+      name = node.name
+      if name.is_a?(Path)
+        accept name
+      else
+        write name
+        next_token
+      end
+
+      format_type_vars node.type_vars, node.splat_index
+
+      skip_space
+      write_token " ", :OP_EQ, " "
+      skip_space_or_newline
+
+      accept node.value
+
+      false
     end
 
     def visit(node : TypeDef)

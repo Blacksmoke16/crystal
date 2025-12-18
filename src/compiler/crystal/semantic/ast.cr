@@ -686,7 +686,7 @@ module Crystal
   end
 
   class Alias
-    property! resolved_type : AliasType
+    property! resolved_type : AliasType | GenericAliasType
   end
 
   class AnnotationDef

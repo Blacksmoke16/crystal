@@ -2123,10 +2123,12 @@ module Crystal
   class Alias < ASTNode
     property name : Path
     property value : ASTNode
+    property type_vars : Array(String)?
+    property splat_index : Int32?
     property doc : String?
     property visibility = Visibility::Public
 
-    def initialize(@name : Path, @value : ASTNode)
+    def initialize(@name : Path, @value : ASTNode, @type_vars : Array(String)? = nil, @splat_index : Int32? = nil)
     end
 
     def accept_children(visitor)
@@ -2134,10 +2136,10 @@ module Crystal
     end
 
     def clone_without_location
-      Alias.new(@name.clone, @value.clone)
+      Alias.new(@name.clone, @value.clone, @type_vars.clone, @splat_index)
     end
 
-    def_equals_and_hash @name, @value
+    def_equals_and_hash @name, @value, @type_vars, @splat_index
   end
 
   class Metaclass < ASTNode

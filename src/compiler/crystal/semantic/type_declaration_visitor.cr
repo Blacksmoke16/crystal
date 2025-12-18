@@ -41,7 +41,8 @@ class Crystal::TypeDeclarationVisitor < Crystal::SemanticVisitor
   end
 
   def visit(node : Alias)
-    node.resolved_type.process_value
+    resolved = node.resolved_type
+    resolved.process_value if resolved.is_a?(AliasType)
     false
   end
 

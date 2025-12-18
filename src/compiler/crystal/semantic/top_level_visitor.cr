@@ -362,23 +362,39 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     scope, name, existing_type = lookup_type_def(node)
 
     if existing_type
-      if existing_type.is_a?(AliasType)
+      if existing_type.is_a?(AliasType) || existing_type.is_a?(GenericAliasType)
         node.raise "alias #{node.name} is already defined"
       else
         node.raise "can't alias #{node.name} because it's already defined as a #{existing_type.type_desc}"
       end
     end
 
-    alias_type = AliasType.new(@program, scope, name, node.value)
-    process_annotations(annotations) do |annotation_type, ann|
-      alias_type.add_annotation(annotation_type, ann)
+    if type_vars = node.type_vars
+      alias_type = GenericAliasType.new(@program, scope, name, type_vars, node.value)
+      alias_type.splat_index = node.splat_index
+
+      process_annotations(annotations) do |annotation_type, ann|
+        alias_type.add_annotation(annotation_type, ann)
+      end
+      attach_doc alias_type, node, annotations
+      scope.types[name] = alias_type
+
+      alias_type.private = true if node.visibility.private?
+
+      node.resolved_type = alias_type
+    else
+      alias_type = AliasType.new(@program, scope, name, node.value)
+
+      process_annotations(annotations) do |annotation_type, ann|
+        alias_type.add_annotation(annotation_type, ann)
+      end
+      attach_doc alias_type, node, annotations
+      scope.types[name] = alias_type
+
+      alias_type.private = true if node.visibility.private?
+
+      node.resolved_type = alias_type
     end
-    attach_doc alias_type, node, annotations
-    scope.types[name] = alias_type
-
-    alias_type.private = true if node.visibility.private?
-
-    node.resolved_type = alias_type
 
     false
   end

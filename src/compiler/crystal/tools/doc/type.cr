@@ -28,7 +28,7 @@ class Crystal::Doc::Type
       "class"
     when .module?
       "module"
-    when AliasType
+    when AliasType, GenericAliasType
       "alias"
     when EnumType
       "enum"
@@ -156,7 +156,7 @@ class Crystal::Doc::Type
   end
 
   def alias?
-    @type.is_a?(AliasType)
+    @type.is_a?(AliasType) || @type.is_a?(GenericAliasType)
   end
 
   def const?
@@ -176,12 +176,34 @@ class Crystal::Doc::Type
   end
 
   def alias_definition
-    alias_def = @type.as?(AliasType).try(&.aliased_type)
-    alias_def
+    case type = @type
+    when AliasType
+      type.aliased_type
+    else
+      nil
+    end
+  end
+
+  def alias_definition_to_s
+    case type = @type
+    when AliasType
+      type.aliased_type?.try(&.to_s)
+    when GenericAliasType
+      type.value.to_s
+    else
+      nil
+    end
   end
 
   def formatted_alias_definition
-    type_to_html alias_definition.as(Crystal::Type)
+    if alias_def = alias_definition
+      type_to_html alias_def.as(Crystal::Type)
+    elsif (type = @type).is_a?(GenericAliasType)
+      # For generic aliases, show the value AST as HTML-escaped text
+      HTML.escape(type.value.to_s)
+    else
+      ""
+    end
   end
 
   def type_definition
@@ -891,7 +913,7 @@ class Crystal::Doc::Type
       builder.field "program", program?
       builder.field "enum", enum?
       builder.field "alias", alias?
-      builder.field "aliased", alias_definition.to_s if alias?
+      builder.field "aliased", alias_definition_to_s if alias?
       builder.field "aliased_html", formatted_alias_definition if alias?
       builder.field "const", const?
       builder.field "constants", constants unless constants.empty?

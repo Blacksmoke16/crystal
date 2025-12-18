@@ -1818,6 +1818,11 @@ module Crystal
 
     it_parses "alias Foo = Bar", Alias.new("Foo".path, "Bar".path)
     it_parses "alias Foo::Bar = Baz", Alias.new(Path.new("Foo", "Bar"), "Baz".path)
+    it_parses "alias Foo(T) = Bar(T)", Alias.new("Foo".path, Generic.new("Bar".path, ["T".path] of ASTNode), ["T"])
+    it_parses "alias Foo(T, U) = Hash(T, U)", Alias.new("Foo".path, Generic.new("Hash".path, ["T".path, "U".path] of ASTNode), ["T", "U"])
+    it_parses "alias Foo(*T) = Tuple(*T)", Alias.new("Foo".path, Generic.new("Tuple".path, [Splat.new("T".path)] of ASTNode), ["T"], 0)
+    assert_syntax_error "alias Foo()"
+    assert_syntax_error "alias Foo(T, T) = Bar(T)", "duplicated type parameter name: T"
     assert_syntax_error "alias Foo?"
 
     it_parses "def foo\n1\nend\nif 1\nend", [Def.new("foo", body: 1.int32), If.new(1.int32)] of ASTNode

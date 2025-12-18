@@ -1701,6 +1701,15 @@ module Crystal
     def visit(node : Alias)
       @str << "alias "
       node.name.accept self
+      if type_vars = node.type_vars
+        @str << '('
+        type_vars.each_with_index do |type_var, i|
+          @str << ", " if i > 0
+          @str << '*' if i == node.splat_index
+          @str << type_var
+        end
+        @str << ')'
+      end
       @str << " = "
       node.value.accept self
       false

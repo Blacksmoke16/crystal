@@ -358,4 +358,99 @@ describe "Semantic: alias" do
       foo(1)
       CRYSTAL
   end
+
+  # Generic alias tests
+  it "resolves generic alias type" do
+    assert_type(<<-CRYSTAL) { generic_class("Array", int32) }
+      alias MyArray(T) = Array(T)
+      MyArray(Int32).new
+      CRYSTAL
+  end
+
+  it "resolves generic alias with multiple type vars" do
+    assert_type(<<-CRYSTAL) { generic_class("Hash", string, int32) }
+      alias MyHash(K, V) = Hash(K, V)
+      MyHash(String, Int32).new
+      CRYSTAL
+  end
+
+  it "resolves generic alias with union" do
+    assert_type(<<-CRYSTAL) { nilable int32 }
+      alias Maybe(T) = T | Nil
+      x = uninitialized Maybe(Int32)
+      x
+      CRYSTAL
+  end
+
+  it "resolves generic proc alias" do
+    assert_type(<<-CRYSTAL) { proc_of(int32, string) }
+      alias Callback(T, R) = Proc(T, R)
+      x = uninitialized Callback(Int32, String)
+      x
+      CRYSTAL
+  end
+
+  it "uses generic alias as method restriction" do
+    assert_type(<<-CRYSTAL) { int32 }
+      alias MyArray(T) = Array(T)
+
+      def foo(x : MyArray(Int32))
+        1
+      end
+
+      foo(Array(Int32).new)
+      CRYSTAL
+  end
+
+  it "resolves nested generic alias" do
+    assert_type(<<-CRYSTAL) { generic_class("Array", generic_class("Array", int32)) }
+      alias Matrix(T) = Array(Array(T))
+      Matrix(Int32).new
+      CRYSTAL
+  end
+
+  it "resolves generic alias with splat" do
+    assert_type(<<-CRYSTAL) { tuple_of([int32, string]) }
+      alias MyTuple(*T) = Tuple(*T)
+      x = uninitialized MyTuple(Int32, String)
+      x
+      CRYSTAL
+  end
+
+  it "errors on wrong number of type vars for generic alias" do
+    assert_error <<-CRYSTAL, "wrong number of type vars for MyArray(T) (given 2, expected 1)"
+      alias MyArray(T) = Array(T)
+      MyArray(Int32, String)
+      CRYSTAL
+  end
+
+  it "errors when using generic alias without instantiation" do
+    assert_error <<-CRYSTAL, "can't use MyArray(T) as the type of a variable yet"
+      alias MyArray(T) = Array(T)
+      x : MyArray
+      CRYSTAL
+  end
+
+  it "errors when generic alias is already defined" do
+    assert_error <<-CRYSTAL, "alias Foo is already defined"
+      alias Foo(T) = Array(T)
+      alias Foo(T) = Hash(String, T)
+      CRYSTAL
+  end
+
+  it "allows method overloading with generic alias" do
+    assert_type(<<-CRYSTAL) { int32 }
+      alias MyArray(T) = Array(T)
+
+      def foo(x : MyArray(Int32))
+        1
+      end
+
+      def foo(x : MyArray(String))
+        "hello"
+      end
+
+      foo(Array(Int32).new)
+      CRYSTAL
+  end
 end

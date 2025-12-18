@@ -205,7 +205,7 @@ class Crystal::Type
         rescue ex : Crystal::CodeError
           node.raise "instantiating #{node}", inner: ex if @raise
         end
-      when GenericType
+      when GenericType, GenericAliasType
         if instance_type.splat_index
           if node.named_args
             node.raise "can only use named arguments with NamedTuple"
@@ -299,6 +299,8 @@ class Crystal::Type
           # union types only when the type is instantiated.
           # TODO: check that everything is a type
           MixedUnionType.new(@root.program, type_vars.map(&.as(Type)))
+        elsif instance_type.is_a?(GenericAliasType)
+          instance_type.instantiate(type_vars)
         else
           instance_type.as(GenericType).instantiate(type_vars)
         end

@@ -2813,6 +2813,158 @@ module Crystal
     end
   end
 
+  # A generic alias type, like `alias Foo(T) = Bar(T)`.
+  class GenericAliasType < NamedType
+    include GenericType
+
+    getter value : ASTNode
+
+    def initialize(program, namespace, name, @type_vars : Array(String), @value : ASTNode)
+      super(program, namespace, name)
+    end
+
+    def can_be_stored?
+      false
+    end
+
+    def new_generic_instance(program, generic_type, type_vars)
+      GenericAliasInstanceType.new(program, generic_type.as(GenericAliasType), type_vars)
+    end
+
+    def type_desc
+      "generic alias"
+    end
+
+    def to_s_with_options(io : IO, skip_union_parens : Bool = false, generic_args : Bool = true, codegen : Bool = false) : Nil
+      super
+      if generic_args
+        io << '('
+        type_vars.each_with_index do |type_var, i|
+          io << ", " if i > 0
+          io << '*' if i == splat_index
+          type_var.to_s(io)
+        end
+        io << ')'
+      end
+    end
+  end
+
+  # An instantiated generic alias, like `Foo(Int32)` where `alias Foo(T) = Bar(T)`.
+  class GenericAliasInstanceType < Type
+    getter generic_type : GenericAliasType
+    getter type_vars : Hash(String, ASTNode)
+    getter? value_processed = false
+    property! aliased_type : Type
+    getter? simple
+
+    def initialize(program, @generic_type, @type_vars)
+      super(program)
+      @simple = true
+    end
+
+    def after_initialize
+      # Nothing to do
+    end
+
+    delegate :annotation, :annotations, :all_annotations, to: generic_type
+
+    def namespace
+      generic_type.namespace
+    end
+
+    def splat_index
+      generic_type.splat_index
+    end
+
+    def double_variadic?
+      generic_type.double_variadic?
+    end
+
+    def name
+      String.build do |io|
+        generic_type.name.to_s(io)
+        io << '('
+        type_vars.each_with_index do |(name, node), i|
+          io << ", " if i > 0
+          if node.is_a?(Var)
+            node.type.to_s(io)
+          else
+            node.to_s(io)
+          end
+        end
+        io << ')'
+      end
+    end
+
+    def remove_alias
+      process_value
+      if aliased_type = @aliased_type
+        aliased_type.remove_alias
+      else
+        @simple = false
+        self
+      end
+    end
+
+    def remove_alias_if_simple
+      process_value
+      @simple ? remove_alias : self
+    end
+
+    def remove_indirection
+      process_value
+      if aliased_type = @aliased_type
+        aliased_type.remove_indirection
+      else
+        @simple = false
+        self
+      end
+    end
+
+    def can_be_stored?
+      process_value
+      if aliased_type = @aliased_type
+        aliased_type.remove_alias.can_be_stored?
+      else
+        true
+      end
+    end
+
+    def process_value
+      return if @value_processed
+      @value_processed = true
+
+      # Create free_vars from type_vars for lookup
+      free_vars = {} of String => TypeVar
+      type_vars.each do |name, node|
+        if node.is_a?(Var)
+          free_vars[name] = node.type
+        end
+      end
+
+      @aliased_type = generic_type.namespace.lookup_type(generic_type.value,
+        allow_typeof: false,
+        free_vars: free_vars,
+        find_root_generic_type_parameters: false)
+    end
+
+    def includes_type?(other)
+      remove_indirection.includes_type?(other)
+    end
+
+    def metaclass
+      remove_alias.metaclass
+    end
+
+    def type_desc
+      "alias"
+    end
+
+    def to_s_with_options(io : IO, skip_union_parens : Bool = false, generic_args : Bool = true, codegen : Bool = false) : Nil
+      io << name
+    end
+  end
+
   # An instantiated enum type.
   #
   # TODO: right now this is not properly modeled. Ideally there

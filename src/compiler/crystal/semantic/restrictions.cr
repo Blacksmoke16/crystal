@@ -831,6 +831,14 @@ module Crystal
       end
     end
 
+    def restrict(other : GenericAliasInstanceType, context)
+      if self == other
+        self
+      else
+        restrict(other.remove_alias, context)
+      end
+    end
+
     def restrict(other : Self, context)
       self_type = context.self_restriction_type || context.instantiated_type
       restrict(self_type.instance_type, context)
@@ -1151,6 +1159,17 @@ module Crystal
     def restrict(other : Generic, context)
       generic_type = get_generic_type(other, context)
       generic_type = generic_type.remove_alias if generic_type.is_a? AliasType
+
+      # Handle GenericAliasType - instantiate and resolve the alias
+      if generic_type.is_a?(GenericAliasType)
+        instantiated = context.defining_type.lookup_type?(other)
+        if instantiated.is_a?(GenericAliasInstanceType)
+          resolved = instantiated.remove_alias
+          return restrict(resolved, context)
+        end
+        return nil
+      end
+
       return super unless generic_type == self.generic_type
 
       generic_type = generic_type.as(GenericType)
@@ -1533,12 +1552,81 @@ module Crystal
     end
   end
 
+  class GenericAliasInstanceType
+    def restriction_of?(other : Underscore, owner, self_free_vars = nil, other_free_vars = nil)
+      true
+    end
+
+    def restriction_of?(other, owner, self_free_vars = nil, other_free_vars = nil)
+      return true if self == other
+
+      remove_alias.restriction_of?(other, owner, self_free_vars, other_free_vars)
+    end
+
+    def restrict(other : Path, context)
+      if first_name = other.single_name?
+        if context.has_unbound_free_var?(first_name)
+          return context.bind_free_var(first_name, self)
+        end
+      end
+
+      other_type = context.defining_type.lookup_path other
+      if other_type
+        if other_type == self
+          return self
+        end
+      else
+        if first_name = other.single_name?
+          if context.defining_type.type_var?(first_name)
+            return context.bind_free_var(first_name, self)
+          else
+            other.raise_undefined_constant(context.defining_type)
+          end
+        end
+      end
+
+      remove_alias.restrict(other, context)
+    end
+
+    def restrict(other : GenericAliasInstanceType, context)
+      return self if self == other
+
+      if !self.simple? && !other.simple?
+        return nil
+      end
+
+      remove_alias.restrict(other, context)
+    end
+
+    def restrict(other : AliasType, context)
+      return self if self == other
+
+      if !self.simple? && !other.simple?
+        return nil
+      end
+
+      remove_alias.restrict(other, context)
+    end
+
+    def restrict(other, context)
+      return self if self == other
+
+      remove_alias.restrict(other, context)
+    end
+  end
+
   class TypeDefType
     def restrict(other : UnionType, context)
       super
     end
 
     def restrict(other : AliasType, context)
+      other = other.remove_alias
+      return self if self == other
+      restrict(other, context)
+    end
+
+    def restrict(other : GenericAliasInstanceType, context)
       other = other.remove_alias
       return self if self == other
       restrict(other, context)

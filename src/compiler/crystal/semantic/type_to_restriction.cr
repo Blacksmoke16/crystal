@@ -106,6 +106,20 @@ module Crystal
       Generic.new(path, type_vars)
     end
 
+    def convert(type : GenericAliasInstanceType)
+      path = type_to_path(type.generic_type)
+      type_vars = type.type_vars.map do |name, type_var|
+        if type_var.is_a?(NumberLiteral)
+          type_var.clone
+        elsif type_var_type = type_var.type?
+          convert(type_var_type) || Underscore.new
+        else
+          Underscore.new
+        end
+      end
+      Generic.new(path, type_vars)
+    end
+
     def convert(type : UnionType)
       converted_union_types =
         type.union_types.map do |union_type|
@@ -156,6 +170,7 @@ module Crystal
     # These can't happen as instance var types
     def convert(type : Crystal::GenericClassType |
                        Crystal::GenericModuleType |
+                       Crystal::GenericAliasType |
                        Crystal::LibType |
                        Crystal::AnnotationType |
                        Crystal::Const |
