@@ -491,7 +491,7 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     end
   end
 
-  def lookup_annotation(ann) : Type
+  def lookup_annotation(ann) : AnnotationKey
     # TODO: Since there's `Int::Primitive`, and now we'll have
     # `::Primitive`, but there's no way to specify ::Primitive
     # just yet in annotations, we temporarily hardcode

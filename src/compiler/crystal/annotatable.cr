@@ -1,19 +1,20 @@
 module Crystal
+  # Types that can be used as annotation keys: traditional annotations or @[Annotation] classes
+  alias AnnotationKey = AnnotationType | ClassType
+
   module Annotatable
-    # Annotations on this instance.
-    # Key can be AnnotationType (traditional) or ClassType (annotation class/struct).
-    property annotations : Hash(Type, Array(Annotation))?
+    property annotations : Hash(AnnotationKey, Array(Annotation))?
 
     # Adds an annotation with the given type and value
-    def add_annotation(annotation_type : Type, value : Annotation)
-      annotations = @annotations ||= {} of Type => Array(Annotation)
+    def add_annotation(annotation_type : AnnotationKey, value : Annotation)
+      annotations = @annotations ||= {} of AnnotationKey => Array(Annotation)
       annotations[annotation_type] ||= [] of Annotation
       annotations[annotation_type] << value
     end
 
     # Returns the last defined annotation with the given type, if any, or `nil` otherwise.
     # For annotation classes, also checks if the stored annotation inherits from annotation_type.
-    def annotation(annotation_type : Type) : Annotation?
+    def annotation(annotation_type : AnnotationKey) : Annotation?
       # Direct match first
       if result = @annotations.try &.[annotation_type]?.try &.last?
         return result
@@ -34,7 +35,7 @@ module Crystal
 
     # Returns all annotations with the given type, if any, or `nil` otherwise.
     # For annotation classes, also returns annotations that inherit from annotation_type.
-    def annotations(annotation_type : Type) : Array(Annotation)?
+    def annotations(annotation_type : AnnotationKey) : Array(Annotation)?
       results = [] of Annotation
 
       # Direct matches

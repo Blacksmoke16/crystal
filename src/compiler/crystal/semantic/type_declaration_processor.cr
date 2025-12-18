@@ -14,7 +14,7 @@ struct Crystal::TypeDeclarationProcessor
     type : Type,
     location : Location,
     uninitialized : Bool,
-    annotations : Array({Type, Annotation})?
+    annotations : Array({AnnotationKey, Annotation})?
 
   # This captures an initialize info: it's related Def,
   # and which instance variables are assigned. Useful
@@ -56,15 +56,15 @@ struct Crystal::TypeDeclarationProcessor
   class InstanceVarTypeInfo
     property type : Type
     property outside_def
-    property annotations : Array({Type, Annotation})?
+    property annotations : Array({AnnotationKey, Annotation})?
     getter location
 
     def initialize(@location : Location, @type : Type)
       @outside_def = false
     end
 
-    def add_annotations(anns : Array({Type, Annotation})?)
-      annotations = @annotations ||= [] of {Type, Annotation}
+    def add_annotations(anns : Array({AnnotationKey, Annotation})?)
+      annotations = @annotations ||= [] of {AnnotationKey, Annotation}
       annotations.concat(anns)
     end
   end
@@ -169,7 +169,7 @@ struct Crystal::TypeDeclarationProcessor
     {node, self}
   end
 
-  private def declare_meta_type_var(vars, owner, name, type : Type, location : Location? = nil, instance_var = false, freeze_type = true, annotations = nil)
+  private def declare_meta_type_var(vars, owner, name, type : Type, location : Location? = nil, instance_var = false, freeze_type = true, annotations : Array({AnnotationKey, Annotation})? = nil)
     if instance_var && location && !owner.allows_instance_vars?
       raise_cant_declare_instance_var(owner, location)
     end

@@ -1693,7 +1693,7 @@ module Crystal
 
     StatementEnd = [:OP_SEMICOLON, :NEWLINE, :SPACE] of Token::Kind
 
-    def parse_class_def(is_abstract = false, is_struct = false, is_annotation = false, doc = nil)
+    def parse_class_def(is_abstract = false, is_struct = false, doc = nil)
       @type_nest += 1
 
       doc ||= @token.doc
@@ -1735,7 +1735,7 @@ module Crystal
 
       @type_nest -= 1
 
-      class_def = ClassDef.new name, body, superclass, type_vars, is_abstract, is_struct, is_annotation, splat_index
+      class_def = ClassDef.new name, body, superclass, type_vars, is_abstract, is_struct, splat_index
       class_def.doc = doc
       class_def.name_location = name_location
       class_def.end_location = end_location
@@ -1821,13 +1821,11 @@ module Crystal
     end
 
     def parse_annotation_def
+      location = @token.location
       doc = @token.doc
-      next_token_skip_space_or_newline
-      parse_annotation_def_name(doc)
-    end
 
-    # Parses annotation name and body after `annotation` keyword and whitespace have been consumed
-    def parse_annotation_def_name(doc = nil)
+      next_token_skip_space_or_newline
+
       name_location = @token.location
       name = parse_path
       check StatementEnd
