@@ -1510,7 +1510,7 @@ module Crystal
       false
     end
 
-    def format_def_args(node : Def | Macro)
+    def format_def_args(node : Def | Macro | MacroDef)
       yields = node.is_a?(Def) && !node.block_arity.nil?
       format_def_args node.args, node.block_arg, node.splat_index, false, node.double_splat, yields
     end
@@ -1745,6 +1745,35 @@ module Crystal
       else
         format_macro_body node
       end
+
+      false
+    end
+
+    def visit(node : MacroDef)
+      reset_macro_state
+
+      write_keyword :macro, " "
+      write_keyword :def, " "
+
+      write node.name
+      next_token
+
+      if @token.type.op_eq? && node.name.ends_with?('=')
+        next_token
+      end
+
+      skip_space(consume_newline: false)
+
+      format_def_args node
+
+      if return_type = node.return_type
+        skip_space
+        write_token " ", :OP_COLON, " "
+        skip_space_or_newline
+        accept return_type
+      end
+
+      format_nested_with_end node.body
 
       false
     end

@@ -1169,7 +1169,7 @@ module Crystal
     end
   end
 
-  class Macro < ASTNode
+  abstract class MacroBase < ASTNode
     property name : String
     property args : Array(Arg)
     property body : ASTNode
@@ -1194,17 +1194,40 @@ module Crystal
       name.size
     end
 
+    def has_any_args?
+      args.present? || !block_arg.nil?
+    end
+  end
+
+  class Macro < MacroBase
     def clone_without_location
       m = Macro.new(@name, @args.clone, @body.clone, @block_arg.clone, @splat_index, @double_splat.clone)
       m.name_location = name_location
       m
     end
 
-    def has_any_args?
-      args.present? || !block_arg.nil?
+    def_equals_and_hash @name, @args, @body, @block_arg, @splat_index, @double_splat
+  end
+
+  class MacroDef < MacroBase
+    property return_type : ASTNode?
+
+    def initialize(name, args = [] of Arg, body = Nop.new, block_arg = nil, splat_index = nil, double_splat = nil, @return_type = nil)
+      super(name, args, body, block_arg, splat_index, double_splat)
     end
 
-    def_equals_and_hash @name, @args, @body, @block_arg, @splat_index, @double_splat
+    def accept_children(visitor)
+      super
+      @return_type.try &.accept visitor
+    end
+
+    def clone_without_location
+      m = MacroDef.new(@name, @args.clone, @body.clone, @block_arg.clone, @splat_index, @double_splat.clone, @return_type.clone)
+      m.name_location = name_location
+      m
+    end
+
+    def_equals_and_hash @name, @args, @body, @block_arg, @splat_index, @double_splat, @return_type
   end
 
   abstract class UnaryExpression < ASTNode

@@ -105,7 +105,7 @@ describe "Semantic: doc" do
         end
         CRYSTAL
       program = result.program
-      bar2 = program.lookup_macros("bar2").as(Array(Macro)).first
+      bar2 = program.lookup_macros("bar2").as(Array(MacroBase)).first
       bar2.doc.should eq("Hello")
     end
 
@@ -267,7 +267,7 @@ describe "Semantic: doc" do
       CRYSTAL
     program = result.program
     foo = program.types["Foo"]
-    bar = foo.metaclass.lookup_macros("bar").as(Array(Macro)).first
+    bar = foo.metaclass.lookup_macros("bar").as(Array(MacroBase)).first
     bar.doc.should eq("Hello")
   end
 
@@ -629,7 +629,7 @@ describe "Semantic: doc" do
         end
         CRYSTAL
       program = result.program
-      type = program.lookup_macros("foo").as(Array(Macro)).first
+      type = program.lookup_macros("foo").as(Array(MacroBase)).first
       type.doc.should eq("Some description")
     end
 

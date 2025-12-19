@@ -854,8 +854,6 @@ module Crystal
       if node.args.size > 0 || node.block_arg || node.double_splat
         @str << '('
         printed_arg = false
-        # NOTE: `drop_parens_for_proc_notation` needed here if macros support
-        # restrictions
         node.args.each_with_index do |arg, i|
           @str << ", " if printed_arg
           @current_arg_type = :splat if i == node.splat_index
@@ -883,7 +881,44 @@ module Crystal
         end
       end
 
-      # newline
+      append_indent
+      @str << "end"
+      false
+    end
+
+    def visit(node : MacroDef)
+      @str << "macro def "
+      @str << node.name.to_s
+      if node.args.size > 0 || node.block_arg || node.double_splat
+        @str << '('
+        printed_arg = false
+        node.args.each_with_index do |arg, i|
+          @str << ", " if printed_arg
+          @current_arg_type = :splat if i == node.splat_index
+          drop_parens_for_proc_notation(arg, &.accept(self))
+          printed_arg = true
+        end
+        if double_splat = node.double_splat
+          @str << ", " if printed_arg
+          @current_arg_type = :double_splat
+          drop_parens_for_proc_notation(double_splat, &.accept(self))
+          printed_arg = true
+        end
+        if block_arg = node.block_arg
+          @str << ", " if printed_arg
+          @current_arg_type = :block_arg
+          drop_parens_for_proc_notation(block_arg, &.accept(self))
+        end
+        @str << ')'
+      end
+      if return_type = node.return_type
+        @str << " : "
+        return_type.accept self
+      end
+      newline
+
+      accept_with_indent(node.body)
+
       append_indent
       @str << "end"
       false

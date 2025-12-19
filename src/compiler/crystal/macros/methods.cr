@@ -40,8 +40,12 @@ module Crystal
     delegate warnings, to: @program
 
     def interpret_top_level_call(node)
-      interpret_top_level_call?(node) ||
+      result = interpret_top_level_call?(node)
+      if result
+        @last = result
+      else
         node.raise("undefined macro method: '#{node.name}'")
+      end
     end
 
     def interpret_top_level_call?(node)
@@ -82,8 +86,198 @@ module Crystal
       when "run"
         interpret_run(node)
       else
-        nil
+        # Look up user-defined macro methods
+        interpret_user_macro_method?(node)
       end
+    end
+
+    # Looks up and executes a user-defined macro method
+    def interpret_user_macro_method?(node)
+      # Evaluate arguments first (they'll be ASTNodes in macro context)
+      evaluated_args = node.args.map { |arg| accept(arg) }
+
+      # Look up macro method in scope chain: current scope -> program (top-level)
+      # Use original node.args and node.named_args for matching (they have .name property)
+      macro_method = lookup_macro_method(node.name, node.args, node.named_args)
+
+      unless macro_method
+        # Check if a macro method with this name exists but with different arguments
+        all_methods = lookup_macro_methods(node.name)
+        unless all_methods.empty?
+          node.raise wrong_number_of_arguments_message(node.name, node.args.size, all_methods)
+        end
+
+        return nil
+      end
+
+      # Build evaluated named args hash for execution
+      evaluated_named_args = node.named_args.try &.to_h { |named_arg| {named_arg.name, accept(named_arg.value)} }
+
+      execute_macro_method(macro_method, node, evaluated_args, evaluated_named_args, node.block)
+    end
+
+    # Looks up a macro method by name in the scope chain that matches the given arguments
+    private def lookup_macro_method(name, args, named_args)
+      lookup_macro_methods(name).find { |m| m.matches?(args, named_args) }
+    end
+
+    # Looks up all macro methods with a given name in the scope chain
+    private def lookup_macro_methods(name) : Array(MacroDef)
+      result = find_macro_methods_in_type(@scope, name)
+      result.concat(find_macro_methods_in_type(@program, name))
+      result
+    end
+
+    # Finds all MacroDefs with a given name in a type
+    private def find_macro_methods_in_type(type, name) : Array(MacroDef)
+      macros_scope = type.metaclass? ? type : type.metaclass
+      if macros_scope.is_a?(ModuleType)
+        if macros = macros_scope.macros.try &.[name]?
+          return macros.select(MacroDef).map(&.as(MacroDef))
+        end
+      end
+      [] of MacroDef
+    end
+
+    # Generates error message for wrong number of arguments
+    private def wrong_number_of_arguments_message(name, given, methods : Array(MacroDef)) : String
+      expected = methods.map { |m|
+        required = m.args.count { |arg| !arg.default_value && arg.name != m.splat_index.try { |i| m.args[i]?.try(&.name) } }
+        total = m.args.size
+        has_splat = m.splat_index
+        has_splat ? "#{required}+" : (required == total ? required.to_s : "#{required}..#{total}")
+      }.uniq.join(", ")
+
+      "wrong number of arguments for macro method '#{name}' (given #{given}, expected #{expected})"
+    end
+
+    # Executes a macro method with the given arguments
+    private def execute_macro_method(macro_method : MacroDef, call_node, args, named_args : Hash(String, ASTNode)?, block : Block? = nil)
+      splat_index = macro_method.splat_index
+      double_splat = macro_method.double_splat
+
+      body_vars = {} of String => ASTNode
+
+      # Bind regular arguments (skip splat index)
+      macro_method.args.each_with_index do |param, index|
+        next if index == splat_index
+
+        arg = if index < args.size
+                # Handle args before splat normally
+                if splat_index && index > splat_index
+                  # Args after splat need offset calculation
+                  splat_size = args.size - macro_method.args.size + 1
+                  args[index + splat_size - 1]?
+                else
+                  args[index]?
+                end
+              end
+
+        if arg
+          if restriction = param.restriction
+            validate_macro_method_type(arg, restriction, call_node, macro_method, param.name)
+          end
+          body_vars[param.name] = arg
+        elsif default_value = param.default_value
+          body_vars[param.name] = accept(default_value)
+        end
+      end
+
+      # Gather splat args into a TupleLiteral.
+      # NOTE: Type restrictions on splats/double splats validate each element,
+      # not the collection itself. We skip this validation for now since we're
+      # doing lightweight type checking.
+      if splat_index
+        splat_param = macro_method.args[splat_index]
+        unless splat_param.name.empty?
+          splat_size = args.size - (macro_method.args.size - 1)
+          splat_size = 0 if splat_size < 0
+          splat_elements = splat_index < args.size ? args[splat_index, splat_size] : [] of ASTNode
+          body_vars[splat_param.name] = TupleLiteral.new(splat_elements)
+        end
+      end
+
+      # Handle named arguments
+      if named_args
+        named_args.each do |name, arg|
+          param = macro_method.args.find { |p| p.external_name == name }
+          next unless param
+          if restriction = param.restriction
+            validate_macro_method_type(arg, restriction, call_node, macro_method, param.name)
+          end
+          body_vars[param.name] = arg
+        end
+      end
+
+      # Handle double splat - gather extra named args
+      if double_splat
+        named_tuple_elems = [] of NamedTupleLiteral::Entry
+        if named_args
+          named_args.each do |name, arg|
+            # Skip args already bound to a parameter
+            next if macro_method.args.any? &.external_name.==(name)
+            named_tuple_elems << NamedTupleLiteral::Entry.new(name, arg)
+          end
+        end
+        body_vars[double_splat.name] = NamedTupleLiteral.new(named_tuple_elems)
+      end
+
+      # Handle block arg - bind the block to the named parameter
+      if block_arg = macro_method.block_arg
+        body_vars[block_arg.name] = block || Nop.new
+      end
+
+      # Execute the body in a new interpreter with the parameter bindings
+      sub_interpreter = MacroInterpreter.new(
+        @program,
+        @scope,
+        @path_lookup,
+        macro_method.location,
+        body_vars,
+        block,
+        @def,
+        true # in_macro
+      )
+
+      # Execute the body
+      macro_method.body.accept(sub_interpreter)
+      result = sub_interpreter.last
+
+      # Validate return type if specified
+      if return_type = macro_method.return_type
+        validate_macro_method_type(result, return_type, call_node, macro_method)
+      end
+
+      result
+    end
+
+    # Validates that a value matches the expected macro type restriction
+    private def validate_macro_method_type(value : ASTNode, restriction : ASTNode, call_node, macro_method : MacroDef, param_name : String? = nil)
+      macro_type = @program.lookup_macro_type(restriction)
+      return if value.macro_is_a?(macro_type)
+
+      if param_name
+        call_node.raise "expected #{restriction} for parameter '#{param_name}', got #{value.class_desc}"
+      else
+        macro_method.raise "expected macro method to return #{restriction}, got #{value.class_desc}"
+      end
+    end
+
+    # Executes a macro method defined on a type (called when receiver is a TypeNode)
+    def execute_type_macro_method?(type : Type, method : String, args : Array(ASTNode), named_args : Hash(String, ASTNode)?, block : Block?, name_loc : Location?)
+      # Look up macro method on the type
+      macro_method = find_macro_methods_in_type(type, method).find { |m| m.matches?(args, nil) }
+      return nil unless macro_method
+
+      # Build a synthetic call node for error reporting
+      call_node = Call.new(nil, method)
+      call_node.location = name_loc
+
+      if macro_method.visibility.private?
+        call_node.raise "private macro def '#{method}' called for #{type}"
+      end
+
+      execute_macro_method(macro_method, call_node, args, named_args, block)
     end
 
     def interpret_compare_versions(node)
@@ -2136,7 +2330,12 @@ module Crystal
       when "has_inner_pointers?"
         interpret_check_args { TypeNode.has_inner_pointers?(type, name_loc) }
       else
-        super
+        # Check for user-defined macro methods on this type
+        if result = interpreter.execute_type_macro_method?(type, method, args, named_args, block, name_loc)
+          result
+        else
+          super
+        end
       end
     end
 

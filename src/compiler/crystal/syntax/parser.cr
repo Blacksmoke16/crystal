@@ -3146,6 +3146,11 @@ module Crystal
       # here must be treated as method names.
       name = consume_def_or_macro_name
 
+      # Check for "macro def" syntax - a macro method
+      if name == "def"
+        return parse_macro_method(doc)
+      end
+
       with_isolated_var_scope do
         name_location = @token.location
 
@@ -3235,6 +3240,134 @@ module Crystal
         end
 
         node = Macro.new name, params, body, block_param, splat_index, double_splat: double_splat
+        node.name_location = name_location
+        node.doc = doc
+        node.end_location = end_location
+        set_visibility node
+        node
+      end
+    end
+
+    # Parses a macro method: `macro def foo(x : StringLiteral) : StringLiteral`
+    # These are reusable methods callable within macro contexts that operate on ASTNodes.
+    def parse_macro_method(doc)
+      # Current token is "def", advance to the method name
+      next_token_skip_space_or_newline
+
+      with_isolated_var_scope do
+        name_location = @token.location
+
+        case @token.type
+        when .const?
+          raise "macro method can't have a receiver"
+        when .ident?
+          check_valid_def_name
+          name = @token.value.to_s
+          equals_sign, _ = consume_def_equals_sign_skip_space
+          name = "#{name}=" if equals_sign
+        else
+          name = @token.type.to_s
+          check_valid_def_op_name
+          next_token_skip_space
+        end
+
+        params = [] of Arg
+
+        found_default_value = false
+        found_splat = false
+        found_double_splat = nil
+
+        splat_index = nil
+        double_splat = nil
+        block_param = nil
+        index = 0
+
+        case @token.type
+        when .op_lparen?
+          next_token_skip_space_or_newline
+          while !@token.type.op_rparen?
+            extras = parse_param(params,
+              extra_assigns: nil,
+              parentheses: true,
+              found_default_value: found_default_value,
+              found_splat: found_splat,
+              found_double_splat: found_double_splat,
+              allow_restrictions: true) # Allow type restrictions for macro methods
+            if !found_default_value && extras.default_value
+              found_default_value = true
+            end
+            if !splat_index && extras.splat
+              splat_index = index
+              found_splat = true
+            end
+            if extras.double_splat
+              double_splat = params.pop
+              found_double_splat = double_splat
+            end
+            if block_param = extras.block_arg
+              check :OP_RPAREN
+              break
+            elsif @token.type.op_comma?
+              next_token_skip_space_or_newline
+            else
+              skip_space_or_newline
+              check :OP_RPAREN
+            end
+            index += 1
+          end
+
+          if splat_index == params.size - 1 && params.last.name.empty?
+            raise "named parameters must follow bare *", params.last.location.not_nil!
+          end
+
+          next_token_skip_space
+        when .ident?, .op_star?
+          if @token.keyword?(:end)
+            unexpected_token "expected ';' or newline"
+          else
+            unexpected_token "parentheses are mandatory for macro method parameters"
+          end
+        when .op_colon?
+          # No parameters, continue to return type
+        when .op_semicolon?, .newline?
+          # No parameters, no return type
+        when .op_period?
+          raise "macro method can't have a receiver"
+        else
+          unexpected_token
+        end
+
+        # Parse return type
+        return_type = nil
+        if @token.type.op_colon?
+          next_token_skip_space_or_newline
+          return_type = parse_bare_proc_type
+          skip_space
+        end
+
+        end_location = nil
+
+        # Macro method bodies are pure expressions (like regular methods),
+        # not macro body syntax with {{ }}
+        skip_statement_end
+        if @token.keyword?(:end)
+          end_location = token_end_location
+          body = Nop.new
+          next_token_skip_space
+        else
+          body = parse_expressions
+          body, end_location = parse_exception_handler(body, implicit: true)
+        end
+
+        node = MacroDef.new(
+          name,
+          params,
+          body,
+          block_param,
+          splat_index,
+          double_splat: double_splat,
+          return_type: return_type
+        )
         node.name_location = name_location
         node.doc = doc
         node.end_location = end_location

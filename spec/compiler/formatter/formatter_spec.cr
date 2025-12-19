@@ -1411,6 +1411,14 @@ describe Crystal::Formatter do
   assert_format "class Foo\n macro foo\n    1  +  2 \n    end\n end", "class Foo\n  macro foo\n    1 + 2\n  end\nend"
   assert_format "macro foo\n    def   bar  \n  end \n    end", "macro foo\n  def bar\n  end\nend"
 
+  # macro def (macro methods)
+  assert_format "macro def foo\nend"
+  assert_format "macro def foo(x : StringLiteral)\nend"
+  assert_format "macro def foo(x : StringLiteral) : StringLiteral\nend"
+  assert_format "macro def foo( x : StringLiteral ) : StringLiteral\nend", "macro def foo(x : StringLiteral) : StringLiteral\nend"
+  assert_format "macro def foo(x : StringLiteral) : StringLiteral\n  x.upcase\nend"
+  assert_format "macro def foo(x : StringLiteral) : StringLiteral\n   x.upcase  \n  end", "macro def foo(x : StringLiteral) : StringLiteral\n  x.upcase\nend"
+
   assert_format "def foo\na = bar do\n1\nend\nend", "def foo\n  a = bar do\n    1\n  end\nend"
   assert_format "def foo\nend\ndef bar\nend", "def foo\nend\n\ndef bar\nend"
   assert_format "private def foo\nend\nprivate def bar\nend", "private def foo\nend\n\nprivate def bar\nend"

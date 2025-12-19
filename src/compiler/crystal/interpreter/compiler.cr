@@ -3221,6 +3221,10 @@ class Crystal::Repl::Compiler < Crystal::Visitor
     false
   end
 
+  def visit(node : MacroDef)
+    false
+  end
+
   def visit(node : VisibilityModifier)
     node.exp.accept self
     false

@@ -1366,7 +1366,6 @@ module Crystal
     CRYSTAL
 
     assert_syntax_error "macro foo; {% foo = 1 }; end"
-    assert_syntax_error "macro def foo : String; 1; end"
 
     it_parses "macro foo=;end", Macro.new("foo=", body: Expressions.new)
     assert_syntax_error "macro Foo;end", "macro can't have a receiver"

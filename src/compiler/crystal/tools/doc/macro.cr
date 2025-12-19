@@ -6,9 +6,9 @@ class Crystal::Doc::Macro
   include Item
 
   getter type : Type
-  getter macro : Crystal::Macro
+  getter macro : Crystal::MacroBase
 
-  def initialize(@generator : Generator, @type : Type, @macro : Crystal::Macro)
+  def initialize(@generator : Generator, @type : Type, @macro : Crystal::MacroBase)
   end
 
   def name

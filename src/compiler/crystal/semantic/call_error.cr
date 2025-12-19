@@ -899,8 +899,12 @@ class Crystal::Call
   def check_macro_wrong_number_of_arguments(def_name)
     return if (obj = self.obj) && !obj.is_a?(Path)
 
-    macros = in_macro_target &.lookup_macros(def_name)
-    return unless macros.is_a?(Array(Macro))
+    all_macros = in_macro_target &.lookup_macros(def_name)
+    return unless all_macros.is_a?(Array(MacroBase))
+
+    # Only consider regular macros, not macro defs (which are only callable inside {{ }})
+    macros = all_macros.select(Macro)
+    return if macros.empty?
 
     if msg = single_def_error_message(macros, named_args)
       raise msg

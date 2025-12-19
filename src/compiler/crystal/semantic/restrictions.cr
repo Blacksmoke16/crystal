@@ -518,8 +518,11 @@ module Crystal
     end
   end
 
-  class Macro
-    def overrides?(other : Macro)
+  class MacroBase
+    def overrides?(other : MacroBase)
+      # A MacroDef and a regular Macro with the same name can coexist
+      return false if self.class != other.class
+
       # If they have different number of arguments, splat index or presence of
       # double splat, no override.
       if args.size != other.args.size ||

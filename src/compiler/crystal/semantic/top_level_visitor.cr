@@ -417,6 +417,33 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     false
   end
 
+  def visit(node : MacroDef)
+    check_outside_exp node, "declare macro"
+
+    annotations = read_annotations
+    process_annotations(annotations) do |annotation_type, ann|
+      node.add_annotation(annotation_type, ann)
+    end
+    node.doc ||= annotations_doc(annotations)
+    check_ditto node, node.location
+
+    node.args.each &.accept self
+    node.double_splat.try &.accept self
+    node.block_arg.try &.accept self
+    node.return_type.try &.accept self
+
+    node.set_type @program.nil
+
+    target = current_type.metaclass.as(ModuleType)
+    begin
+      target.add_macro node
+    rescue ex : Crystal::CodeError
+      node.raise ex.message
+    end
+
+    false
+  end
+
   def visit(node : Arg)
     if anns = node.parsed_annotations
       process_annotations anns do |annotation_type, ann|
@@ -946,7 +973,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
       end
     when Def
       return false
-    when Macro
+    when Macro, MacroDef
       if node.modifier.private?
         return false
       else
@@ -1227,7 +1254,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     end
   end
 
-  def check_ditto(node : Def | Assign | FunDef | Const | Macro, location : Location?) : Nil
+  def check_ditto(node : Def | Assign | FunDef | Const | Macro | MacroDef, location : Location?) : Nil
     return if !@program.wants_doc?
 
     if stripped_doc = node.doc.try &.strip

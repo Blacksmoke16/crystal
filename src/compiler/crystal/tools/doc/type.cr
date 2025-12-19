@@ -307,10 +307,10 @@ class Crystal::Doc::Type
     all_class_methods.select &.constructor?
   end
 
-  @macros : Array(Macro)?
+  @all_macros : Array(Macro)?
 
-  def macros
-    @macros ||= begin
+  private def all_macros
+    @all_macros ||= begin
       macros = [] of Macro
       @type.metaclass.macros.try &.each_value do |the_macros|
         the_macros.each do |a_macro|
@@ -323,6 +323,14 @@ class Crystal::Doc::Type
       end
       macros.sort_by! { |x| sort_order(x) }
     end
+  end
+
+  def macros
+    all_macros.reject &.macro.is_a?(MacroDef)
+  end
+
+  def macro_methods
+    all_macros.select &.macro.is_a?(MacroDef)
   end
 
   @constants : Array(Constant)?

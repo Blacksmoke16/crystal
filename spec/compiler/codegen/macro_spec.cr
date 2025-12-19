@@ -1889,4 +1889,452 @@ describe "Code gen: macro" do
     run("{{ flag?(:foo) ? 1 : 0 }}", flags: %w(foo)).to_i.should eq(1)
     run("{{ flag?(:foo) ? 1 : 0 }}", Int32, flags: %w(foo)).should eq(1)
   end
+
+  # Macro method tests (macro def)
+  describe "macro def" do
+    it "defines and calls a simple macro method" do
+      run(<<-CRYSTAL).to_i.should eq(5)
+        macro def array_size(arr : ArrayLiteral) : NumberLiteral
+          arr.size
+        end
+
+        macro test
+          {{ array_size([1, 2, 3, 4, 5]) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "transforms string with macro method" do
+      run(<<-CRYSTAL).to_string.should eq("hello_world")
+        macro def format_name(name : StringLiteral) : StringLiteral
+          name.underscore
+        end
+
+        macro test
+          {{ format_name("HelloWorld") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports recursion in macro methods" do
+      run(<<-CRYSTAL).to_i.should eq(15)
+        macro def sum_array(arr : ArrayLiteral) : NumberLiteral
+          if arr.empty?
+            0
+          else
+            arr.first + sum_array(arr[1..-1])
+          end
+        end
+
+        macro test
+          {{ sum_array([1, 2, 3, 4, 5]) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports type-scoped macro methods" do
+      run(<<-CRYSTAL).to_string.should eq("HelloWorld")
+        class Foo
+          macro def helper(name : StringLiteral) : StringLiteral
+            name.camelcase
+          end
+        end
+
+        macro test
+          {{ Foo.helper("hello_world") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "validates argument types" do
+      assert_error(<<-CRYSTAL, "expected StringLiteral for parameter 'x', got NumberLiteral")
+        macro def expect_string(x : StringLiteral) : StringLiteral
+          x
+        end
+
+        macro test
+          {{ expect_string(123) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "validates return types" do
+      assert_error(<<-CRYSTAL, "expected macro method to return StringLiteral, got NumberLiteral")
+        macro def bad_return(x : NumberLiteral) : StringLiteral
+          x
+        end
+
+        macro test
+          {{ bad_return(123) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports union types in parameters" do
+      run(<<-CRYSTAL).to_string.should eq(":hello")
+        macro def stringify_value(x : StringLiteral | SymbolLiteral) : StringLiteral
+          x.stringify
+        end
+
+        macro test
+          {{ stringify_value(:hello) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports default parameter values" do
+      run(<<-CRYSTAL).to_string.should eq("Hello World")
+        macro def greet(name : StringLiteral, greeting : StringLiteral = "Hello") : StringLiteral
+          greeting + " " + name
+        end
+
+        macro test
+          {{ greet("World") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports untyped parameters" do
+      run(<<-CRYSTAL).to_string.should eq("NumberLiteral")
+        macro def get_type(x)
+          x.class_name
+        end
+
+        macro test
+          {{ get_type(123) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "generates code using macro method result" do
+      run(<<-CRYSTAL).to_string.should eq("generated")
+        macro def format_name(name : StringLiteral) : MacroId
+          name.underscore.id
+        end
+
+        macro generate
+          {% name = "HelloWorld" %}
+          def {{ format_name(name) }}
+            "generated"
+          end
+        end
+
+        generate
+        hello_world
+        CRYSTAL
+    end
+
+    it "errors when called outside macro context" do
+      assert_error(<<-CRYSTAL, "macro method 'format_name' can only be called inside a macro expression")
+        macro def format_name(name : StringLiteral) : StringLiteral
+          name
+        end
+
+        format_name("test")
+        CRYSTAL
+    end
+
+    it "errors when calling private macro method with explicit receiver" do
+      assert_error(<<-CRYSTAL, "private macro def 'helper' called for Foo")
+        class Foo
+          private macro def helper(x : StringLiteral) : StringLiteral
+            x.upcase
+          end
+        end
+
+        macro test
+          {{ Foo.helper("hello") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "allows calling private macro method without receiver from inside the type" do
+      run(<<-CRYSTAL).to_string.should eq("HELLO")
+        class Foo
+          private macro def helper(x : StringLiteral) : StringLiteral
+            x.upcase
+          end
+
+          macro generate
+            {{ helper("hello") }}
+          end
+        end
+
+        Foo.generate
+        CRYSTAL
+    end
+
+    it "calls macro method when both macro and macro def exist with same name" do
+      run(<<-CRYSTAL).to_i.should eq(2)
+        class Foo
+          macro foo
+            1
+          end
+
+          macro def foo : NumberLiteral
+            2
+          end
+
+          macro test
+            {{ Foo.foo }}
+          end
+        end
+
+        Foo.test
+        CRYSTAL
+    end
+
+    it "calls regular macro when both macro and macro def exist with same name" do
+      run(<<-CRYSTAL).to_i.should eq(1)
+        class Foo
+          macro foo
+            1
+          end
+
+          macro def foo : NumberLiteral
+            2
+          end
+        end
+
+        Foo.foo
+        CRYSTAL
+    end
+
+    it "works in {% %} control statement" do
+      run(<<-CRYSTAL).to_i.should eq(12)
+        macro def double(n : NumberLiteral) : NumberLiteral
+          n * 2
+        end
+
+        {% begin %}
+          {% result = double(2) + double(4) %}
+          {{ result }}
+        {% end %}
+        CRYSTAL
+    end
+
+    it "works in {% if %} control expression" do
+      run(<<-CRYSTAL).to_string.should eq("even")
+        macro def is_even(n : NumberLiteral) : BoolLiteral
+          n % 2 == 0
+        end
+
+        macro test
+          {% if is_even(4) %}
+            "even"
+          {% else %}
+            "odd"
+          {% end %}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "works in {% for %} control expression" do
+      run(<<-CRYSTAL).to_i.should eq(3)
+        macro def filter_even(arr : ArrayLiteral) : ArrayLiteral
+          arr.select { |x| x % 2 == 0 }
+        end
+
+        class Foo
+          {% for i in filter_even([1, 2, 3, 4, 5, 6]) %}
+            def self.method_{{i}}
+              {{i}}
+            end
+          {% end %}
+        end
+
+        Foo.method_2 == 2 && Foo.method_4 == 4 && Foo.method_6 == 6 ? 3 : 0
+        CRYSTAL
+    end
+
+    it "supports splat parameters" do
+      run(<<-CRYSTAL).to_i.should eq(6)
+        macro def sum(*args) : NumberLiteral
+          args.reduce(0) { |acc, x| acc + x }
+        end
+
+        macro test
+          {{ sum(1, 2, 3) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports double splat parameters" do
+      run(<<-CRYSTAL).to_i.should eq(3)
+        macro def count_kwargs(**kwargs) : NumberLiteral
+          kwargs.size
+        end
+
+        macro test
+          {{ count_kwargs(a: 1, b: 2, c: 3) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports blocks with yield" do
+      run(<<-CRYSTAL).to_i.should eq(42)
+        macro def with_block(&block)
+          yield
+        end
+
+        macro test
+          {{ with_block { 42 } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports blocks with multiple yields" do
+      run(<<-CRYSTAL).to_i.should eq(30)
+        macro def repeat_block(&block)
+          yield + yield + yield
+        end
+
+        macro test
+          {{ repeat_block { 10 } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports named block parameter access" do
+      run(<<-CRYSTAL).to_i.should eq(10)
+        macro def inspect_block(&block)
+          block.body
+        end
+
+        macro test
+          {{ inspect_block { 10 } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports yield with value and block variable" do
+      run(<<-CRYSTAL).to_i.should eq(10)
+        macro def apply_to_5(&block)
+          yield 5
+        end
+
+        macro test
+          {{ apply_to_5 { |n| n &+ 5 } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports yield with multiple values and block variables" do
+      run(<<-CRYSTAL).to_i.should eq(11)
+        macro def apply_to_pair(&block)
+          yield 5, 6
+        end
+
+        macro test
+          {{ apply_to_pair { |a, b| a &+ b } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports recursive macro methods" do
+      run(<<-CRYSTAL).to_i.should eq(120)
+        macro def factorial(n : NumberLiteral) : NumberLiteral
+          n <= 1 ? 1 : n * factorial(n - 1)
+        end
+
+        macro test
+          {{ factorial(5) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports conditional return with ternary" do
+      run(<<-CRYSTAL).to_i.should eq(10)
+        macro def clamp_to_10(x : NumberLiteral) : NumberLiteral
+          x > 10 ? 10 : x
+        end
+
+        macro test
+          {{ clamp_to_10(15) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "raises on type mismatch for parameter" do
+      assert_error(<<-CRYSTAL, "expected NumberLiteral for parameter 'x', got StringLiteral")
+        macro def expects_number(x : NumberLiteral) : NumberLiteral
+          x
+        end
+
+        macro test
+          {{ expects_number("hello") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "raises on type mismatch for return value" do
+      assert_error(<<-CRYSTAL, "expected macro method to return NumberLiteral, got StringLiteral")
+        macro def returns_wrong : NumberLiteral
+          "oops"
+        end
+
+        macro test
+          {{ returns_wrong }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "raises on wrong number of arguments" do
+      assert_error(<<-CRYSTAL, "wrong number of arguments for macro method 'add' (given 1, expected 2)")
+        macro def add(a : NumberLiteral, b : NumberLiteral) : NumberLiteral
+          a + b
+        end
+
+        macro test
+          {{ add(1) }}
+        end
+
+        test
+        CRYSTAL
+    end
+  end
 end

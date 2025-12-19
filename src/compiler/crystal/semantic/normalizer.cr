@@ -153,6 +153,10 @@ module Crystal
       node
     end
 
+    def transform(node : MacroDef)
+      node
+    end
+
     def transform(node : If)
       node.cond = node.cond.transform(self)
 

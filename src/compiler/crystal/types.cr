@@ -115,7 +115,7 @@ module Crystal
 
     # Returns all macros defines in this type, indexed by their name.
     # This does not include methods defined in ancestors.
-    def macros : Hash(String, Array(Macro))?
+    def macros : Hash(String, Array(MacroBase))?
       nil
     end
 
@@ -489,7 +489,8 @@ module Crystal
       macros_scope = self.metaclass? ? self : self.metaclass
 
       if macros = macros_scope.macros.try &.[name]?
-        match = macros.find &.matches?(args, named_args)
+        # Skip macro defs - they are looked up separately
+        match = macros.find { |m| m.is_a?(Macro) && m.matches?(args, named_args) }
         return match if match
       end
 
@@ -904,7 +905,7 @@ module Crystal
   # Base type for all module-like types (modules, classes, structs, enums).
   abstract class ModuleType < NamedType
     getter defs : Hash(String, Array(DefWithMetadata))?
-    getter macros : Hash(String, Array(Macro))?
+    getter macros : Hash(String, Array(MacroBase))?
     getter hooks : Array(Hook)?
     getter(parents) { [] of Type }
 
@@ -942,23 +943,24 @@ module Crystal
     def add_macro(a_macro)
       a_macro.owner = self
 
-      case a_macro.name
-      when "inherited"
-        return add_hook :inherited, a_macro
-      when "included"
-        return add_hook :included, a_macro
-      when "extended"
-        return add_hook :extended, a_macro
-      when "method_added"
-        return add_hook :method_added, a_macro, args_size: 1
-      when "method_missing"
-        check_macro_param_count(a_macro, 1)
-      else
-        # normal macro
+      # Hook macros are only valid for regular macros, not macro defs
+      if a_macro.is_a?(Macro)
+        case a_macro.name
+        when "inherited"
+          return add_hook :inherited, a_macro
+        when "included"
+          return add_hook :included, a_macro
+        when "extended"
+          return add_hook :extended, a_macro
+        when "method_added"
+          return add_hook :method_added, a_macro, args_size: 1
+        when "method_missing"
+          check_macro_param_count(a_macro, 1)
+        end
       end
 
-      macros = (@macros ||= {} of String => Array(Macro))
-      array = (macros[a_macro.name] ||= [] of Macro)
+      macros = (@macros ||= {} of String => Array(MacroBase))
+      array = (macros[a_macro.name] ||= [] of MacroBase)
       index = array.index { |existing_macro| a_macro.overrides?(existing_macro) }
       if index
         # a_macro has the same signature of an existing macro, we override it.

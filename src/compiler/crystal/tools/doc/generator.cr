@@ -167,7 +167,7 @@ class Crystal::Doc::Generator
     must_include? a_macro.macro
   end
 
-  def must_include?(a_macro : Crystal::Macro)
+  def must_include?(a_macro : Crystal::MacroBase)
     return false if nodoc? a_macro
 
     must_include? a_macro.location

@@ -27,7 +27,7 @@ class Crystal::Def
   end
 end
 
-class Crystal::Macro
+class Crystal::MacroBase
   def to_json(builder : JSON::Builder)
     builder.object do
       builder.field "name", name
@@ -37,6 +37,9 @@ class Crystal::Macro
       builder.field "block_arg", block_arg unless block_arg.nil?
       builder.field "visibility", visibility.to_s
       builder.field "body", body.to_s
+      if self.is_a?(MacroDef) && (return_type = self.return_type)
+        builder.field "return_type", return_type.to_s
+      end
     end
   end
 end
