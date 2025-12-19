@@ -1889,4 +1889,167 @@ describe "Code gen: macro" do
     run("{{ flag?(:foo) ? 1 : 0 }}", flags: %w(foo)).to_i.should eq(1)
     run("{{ flag?(:foo) ? 1 : 0 }}", Int32, flags: %w(foo)).should eq(1)
   end
+
+  # Macro method tests (macro def)
+  describe "macro def" do
+    it "defines and calls a simple macro method" do
+      run(<<-CRYSTAL).to_i.should eq(5)
+        macro def array_size(arr : ArrayLiteral) : NumberLiteral
+          arr.size
+        end
+
+        macro test
+          {{ array_size([1, 2, 3, 4, 5]) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "transforms string with macro method" do
+      run(<<-CRYSTAL).to_string.should eq("hello_world")
+        macro def format_name(name : StringLiteral) : StringLiteral
+          name.underscore
+        end
+
+        macro test
+          {{ format_name("HelloWorld") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports recursion in macro methods" do
+      run(<<-CRYSTAL).to_i.should eq(15)
+        macro def sum_array(arr : ArrayLiteral) : NumberLiteral
+          if arr.empty?
+            0
+          else
+            arr.first + sum_array(arr[1..-1])
+          end
+        end
+
+        macro test
+          {{ sum_array([1, 2, 3, 4, 5]) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports type-scoped macro methods" do
+      run(<<-CRYSTAL).to_string.should eq("HelloWorld")
+        class Foo
+          macro def helper(name : StringLiteral) : StringLiteral
+            name.camelcase
+          end
+        end
+
+        macro test
+          {{ Foo.helper("hello_world") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "validates argument types" do
+      assert_error(<<-CRYSTAL, "expected StringLiteral for parameter 'x', got NumberLiteral")
+        macro def expect_string(x : StringLiteral) : StringLiteral
+          x
+        end
+
+        macro test
+          {{ expect_string(123) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "validates return types" do
+      assert_error(<<-CRYSTAL, "macro method expected to return StringLiteral, got NumberLiteral")
+        macro def bad_return(x : NumberLiteral) : StringLiteral
+          x
+        end
+
+        macro test
+          {{ bad_return(123) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports union types in parameters" do
+      run(<<-CRYSTAL).to_string.should eq(":hello")
+        macro def stringify_value(x : StringLiteral | SymbolLiteral) : StringLiteral
+          x.stringify
+        end
+
+        macro test
+          {{ stringify_value(:hello) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports default parameter values" do
+      run(<<-CRYSTAL).to_string.should eq("Hello World")
+        macro def greet(name : StringLiteral, greeting : StringLiteral = "Hello") : StringLiteral
+          greeting + " " + name
+        end
+
+        macro test
+          {{ greet("World") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports untyped parameters" do
+      run(<<-CRYSTAL).to_string.should eq("NumberLiteral")
+        macro def get_type(x)
+          x.class_name
+        end
+
+        macro test
+          {{ get_type(123) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "generates code using macro method result" do
+      run(<<-CRYSTAL).to_string.should eq("generated")
+        macro def format_name(name : StringLiteral) : MacroId
+          name.underscore.id
+        end
+
+        macro generate
+          {% name = "HelloWorld" %}
+          def {{ format_name(name) }}
+            "generated"
+          end
+        end
+
+        generate
+        hello_world
+        CRYSTAL
+    end
+
+    it "errors when called outside macro context" do
+      assert_error(<<-CRYSTAL, "macro method 'format_name' can only be called inside a macro expression")
+        macro def format_name(name : StringLiteral) : StringLiteral
+          name
+        end
+
+        format_name("test")
+        CRYSTAL
+    end
+  end
 end

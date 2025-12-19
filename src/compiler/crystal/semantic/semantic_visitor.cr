@@ -310,6 +310,11 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
 
     return false unless the_macro.is_a?(Macro)
 
+    # Macro methods can only be called inside macro expressions
+    if the_macro.macro_method?
+      node.raise "macro method '#{node.name}' can only be called inside a macro expression ({{ }})"
+    end
+
     # If we find a macro outside a def/block and this is not the first pass it means that the
     # macro was defined before we first found this call, so it's an error
     # (we must analyze the macro expansion in all passes)

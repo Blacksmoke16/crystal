@@ -1179,8 +1179,10 @@ module Crystal
     property splat_index : Int32?
     property doc : String?
     property visibility = Visibility::Public
+    property return_type : ASTNode?
+    property? macro_method : Bool = false
 
-    def initialize(@name, @args = [] of Arg, @body = Nop.new, @block_arg = nil, @splat_index = nil, @double_splat = nil)
+    def initialize(@name, @args = [] of Arg, @body = Nop.new, @block_arg = nil, @splat_index = nil, @double_splat = nil, @return_type = nil, @macro_method = false)
     end
 
     def accept_children(visitor)
@@ -1188,6 +1190,7 @@ module Crystal
       @body.accept visitor
       @double_splat.try &.accept visitor
       @block_arg.try &.accept visitor
+      @return_type.try &.accept visitor
     end
 
     def name_size
@@ -1195,7 +1198,7 @@ module Crystal
     end
 
     def clone_without_location
-      m = Macro.new(@name, @args.clone, @body.clone, @block_arg.clone, @splat_index, @double_splat.clone)
+      m = Macro.new(@name, @args.clone, @body.clone, @block_arg.clone, @splat_index, @double_splat.clone, @return_type.clone, @macro_method)
       m.name_location = name_location
       m
     end
@@ -1204,7 +1207,7 @@ module Crystal
       args.present? || !block_arg.nil?
     end
 
-    def_equals_and_hash @name, @args, @body, @block_arg, @splat_index, @double_splat
+    def_equals_and_hash @name, @args, @body, @block_arg, @splat_index, @double_splat, @return_type, @macro_method
   end
 
   abstract class UnaryExpression < ASTNode

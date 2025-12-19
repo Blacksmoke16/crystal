@@ -132,6 +132,19 @@ module Crystal
       node
     end
 
+    def transform(node : Macro)
+      # For macro methods, skip transforming the body since it contains
+      # macro expressions (like parameter references) that aren't valid
+      # regular Crystal code. The body is only executed in the macro interpreter.
+      if node.macro_method?
+        node
+      else
+        # Regular macros use MacroLiteral/MacroExpression nodes in their body
+        # which can be safely transformed
+        super
+      end
+    end
+
     def transform(node : Def)
       node.hook_expansions.try &.map! &.transform self
       node

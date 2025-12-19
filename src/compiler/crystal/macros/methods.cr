@@ -40,8 +40,12 @@ module Crystal
     delegate warnings, to: @program
 
     def interpret_top_level_call(node)
-      interpret_top_level_call?(node) ||
+      result = interpret_top_level_call?(node)
+      if result
+        @last = result
+      else
         node.raise("undefined macro method: '#{node.name}'")
+      end
     end
 
     def interpret_top_level_call?(node)
@@ -82,8 +86,174 @@ module Crystal
       when "run"
         interpret_run(node)
       else
+        # Look up user-defined macro methods
+        interpret_user_macro_method?(node)
+      end
+    end
+
+    # Looks up and executes a user-defined macro method
+    def interpret_user_macro_method?(node)
+      # Evaluate arguments first (they'll be ASTNodes in macro context)
+      evaluated_args = node.args.map { |arg| accept(arg) }
+
+      # Look up macro method in scope chain: current scope -> program (top-level)
+      # Use original node.args and node.named_args for matching (they have .name property)
+      macro_method = lookup_macro_method(node.name, node.args, node.named_args)
+      return nil unless macro_method
+
+      # Build evaluated named args hash for execution
+      evaluated_named_args = node.named_args.try &.to_h { |named_arg| {named_arg.name, accept(named_arg.value)} }
+
+      execute_macro_method(macro_method, node, evaluated_args, evaluated_named_args)
+    end
+
+    # Looks up a macro method by name in the scope chain
+    private def lookup_macro_method(name, args, named_args)
+      # First check current scope
+      if macro_method = find_macro_method_in_type(@scope, name, args, named_args)
+        return macro_method
+      end
+
+      # Check program scope (top-level macro methods)
+      if macro_method = find_macro_method_in_type(@program, name, args, named_args)
+        return macro_method
+      end
+
+      nil
+    end
+
+    # Finds a macro method in a specific type
+    private def find_macro_method_in_type(type, name, args, named_args)
+      result = type.lookup_macro(name, args, named_args)
+      case result
+      when Macro
+        result.macro_method? ? result : nil
+      else
         nil
       end
+    end
+
+    # Executes a macro method with the given arguments
+    private def execute_macro_method(macro_method : Macro, call_node, args, named_args : Hash(String, ASTNode)?)
+      # Validate argument types against parameter restrictions
+      macro_method.args.each_with_index do |param, index|
+        next unless restriction = param.restriction
+        next if index >= args.size  # Will be handled by default values
+
+        arg = args[index]
+        validate_macro_method_arg_type(arg, restriction, param.name, call_node)
+      end
+
+      # Validate named argument types
+      if named_args
+        named_args.each do |name, arg|
+          param = macro_method.args.find { |p| p.external_name == name }
+          next unless param && param.restriction
+          validate_macro_method_arg_type(arg, param.restriction, param.name, call_node)
+        end
+      end
+
+      # Create a new interpreter scope for the macro method body
+      # Map arguments to parameter names
+      body_vars = {} of String => ASTNode
+      macro_method.args.each_with_index do |param, index|
+        if index < args.size
+          body_vars[param.name] = args[index]
+        elsif default_value = param.default_value
+          body_vars[param.name] = accept(default_value)
+        end
+      end
+
+      # Handle named arguments
+      if named_args
+        named_args.each do |name, arg|
+          param = macro_method.args.find { |p| p.external_name == name }
+          if param
+            body_vars[param.name] = arg
+          end
+        end
+      end
+
+      # Execute the body in a new interpreter with the parameter bindings
+      sub_interpreter = MacroInterpreter.new(
+        @program,
+        @scope,
+        @path_lookup,
+        macro_method.location,
+        body_vars,
+        nil,  # block
+        @def,
+        true  # in_macro
+      )
+
+      # Execute the body
+      macro_method.body.accept(sub_interpreter)
+      result = sub_interpreter.last
+
+      # Validate return type if specified
+      if return_type = macro_method.return_type
+        validate_macro_method_return_type(result, return_type, call_node)
+      end
+
+      result
+    end
+
+    # Validates that an argument matches the expected macro type
+    private def validate_macro_method_arg_type(arg, restriction, param_name, call_node)
+      expected_types = macro_type_names_from_restriction(restriction)
+      return if expected_types.empty?  # No restriction or unknown restriction
+
+      actual_type = arg.class_desc
+      return if expected_types.any? { |expected| macro_type_matches?(actual_type, expected) }
+
+      expected_str = expected_types.size == 1 ? expected_types.first : expected_types.join(" | ")
+      call_node.raise "expected #{expected_str} for parameter '#{param_name}', got #{actual_type}"
+    end
+
+    # Validates that the return value matches the expected macro type
+    private def validate_macro_method_return_type(result, restriction, call_node)
+      expected_types = macro_type_names_from_restriction(restriction)
+      return if expected_types.empty?
+
+      actual_type = result.class_desc
+      return if expected_types.any? { |expected| macro_type_matches?(actual_type, expected) }
+
+      expected_str = expected_types.size == 1 ? expected_types.first : expected_types.join(" | ")
+      call_node.raise "macro method expected to return #{expected_str}, got #{actual_type}"
+    end
+
+    # Extracts type names from a restriction AST node
+    private def macro_type_names_from_restriction(restriction) : Array(String)
+      case restriction
+      when Path
+        [restriction.names.join("::")]
+      when Union
+        restriction.types.flat_map { |t| macro_type_names_from_restriction(t) }
+      when Generic
+        name = restriction.name
+        name.is_a?(Path) ? [name.names.join("::")] : [] of String
+      else
+        [] of String
+      end
+    end
+
+    # Checks if an actual macro type matches an expected type name
+    private def macro_type_matches?(actual : String, expected : String) : Bool
+      return true if expected == "ASTNode"  # ASTNode matches anything
+      actual == expected
+    end
+
+    # Executes a macro method defined on a type (called when receiver is a TypeNode)
+    def execute_type_macro_method?(type : Type, method : String, args : Array(ASTNode), named_args : Hash(String, ASTNode)?, name_loc : Location?)
+      # Look up macro method on the type
+      macro_method = find_macro_method_in_type(type, method, args, nil)
+      return nil unless macro_method
+
+      # Build a synthetic call node for error reporting
+      call_node = Call.new(nil, method)
+      call_node.location = name_loc
+
+      execute_macro_method(macro_method, call_node, args, named_args)
     end
 
     def interpret_compare_versions(node)
@@ -2136,7 +2306,12 @@ module Crystal
       when "has_inner_pointers?"
         interpret_check_args { TypeNode.has_inner_pointers?(type, name_loc) }
       else
-        super
+        # Check for user-defined macro methods on this type
+        if result = interpreter.execute_type_macro_method?(type, method, args, named_args, name_loc)
+          result
+        else
+          super
+        end
       end
     end
 
