@@ -1372,7 +1372,7 @@ describe Crystal::Formatter do
   assert_format "macro foo( x  =   1, y  =  2,  &block)\nend", "macro foo(x = 1, y = 2, &block)\nend"
   assert_format "macro foo\n  1 + 2\nend"
   assert_format "macro foo\n  if 1\n 1 + 2\n end\nend", "macro foo\n  if 1\n    1 + 2\n  end\nend"
-  assert_format "macro foo\n  {{1 + 2}}\nend", "macro foo\n  {{1 + 2}}\nend"
+  assert_format "macro foo\n  {{1 + 2}}\nend", "macro foo\n  {{ 1 + 2 }}\nend"
   assert_format "macro foo\n  {{ 1 + 2 }}\nend", "macro foo\n  {{ 1 + 2 }}\nend"
   assert_format "macro foo\n  {% 1 + 2 %}\nend", "macro foo\n  {% 1 + 2 %}\nend"
   assert_format "macro foo\n  {{ 1 + 2 }}\\\nend", "macro foo\n  {{ 1 + 2 }}\\\nend"
@@ -1395,13 +1395,13 @@ describe Crystal::Formatter do
   assert_format "  {% if 1 %} {% if 2 %} 2 {% end %} {% end %}", "{% if 1 %} {% if 2 %} 2 {% end %} {% end %}"
   assert_format "if 1\n  {% if 2 %} {% end %}\nend"
   assert_format "if 1\n  {% for x in y %} {% end %}\nend"
-  assert_format "if 1\n  {{1 + 2}}\nend"
+  assert_format "if 1\n  {{1 + 2}}\nend", "if 1\n  {{ 1 + 2 }}\nend"
   assert_format "def foo : self | Nil\n  nil\nend"
   assert_format "macro foo(x)\n  {% if 1 %} 2 {% end %}\nend"
   assert_format "macro foo()\n  {% if 1 %} 2 {% end %}\nend", "macro foo\n  {% if 1 %} 2 {% end %}\nend"
   assert_format "macro flags\n  {% if 1 %}\\\n  {% end %}\\\nend"
   assert_format "macro flags\n  {% if 1 %}\\\n 1 {% else %}\\\n {% end %}\\\nend"
-  assert_format "macro flags\n  {% if 1 %}{{1}}a{{2}}{% end %}\\\nend"
+  assert_format "macro flags\n  {% if 1 %}{{1}}a{{2}}{% end %}\\\nend", "macro flags\n  {% if 1 %}{{ 1 }}a{{ 2 }}{% end %}\\\nend"
   assert_format "  {% begin %} 2 {% end %}", "{% begin %} 2 {% end %}"
   assert_format "macro foo\n  \\{\nend"
   assert_format "macro foo\n  {% if 1 %} 2 {% elsif 3 %} 4 {% else %} 5 {% end %}\nend"
@@ -1410,6 +1410,27 @@ describe Crystal::Formatter do
   assert_format "macro foo\n    1  +  2 \n    end", "macro foo\n  1 + 2\nend"
   assert_format "class Foo\n macro foo\n    1  +  2 \n    end\n end", "class Foo\n  macro foo\n    1 + 2\n  end\nend"
   assert_format "macro foo\n    def   bar  \n  end \n    end", "macro foo\n  def bar\n  end\nend"
+
+  assert_format "{{foo}}", "{{ foo }}"
+  assert_format "{{ foo}}", "{{ foo }}"
+  assert_format "{{foo }}", "{{ foo }}"
+  assert_format "{{  foo  }}", "{{ foo }}"
+  assert_format "{%foo%}", "{% foo %}"
+  assert_format "{% foo%}", "{% foo %}"
+  assert_format "{%foo %}", "{% foo %}"
+  assert_format "{%  foo  %}", "{% foo %}"
+
+  assert_format "{ {{FOO}} }", "{ {{ FOO }} }"
+  assert_format "{ {{FOO}}}", "{ {{ FOO }} }"
+  assert_format "{{{FOO}}}", "{{ {FOO} }}"
+  assert_format "{ {%FOO%} }", "{ {% FOO %} }"
+  assert_format "{ {%FOO%}}", "{ {% FOO %} }"
+
+  assert_format "{a: {{FOO}}}", "{a: {{ FOO }} }"
+
+  assert_format %("\#{ {{foo}} }"), %("\#{ {{ foo }} }")
+  assert_format %("a\#{ {{x}} }b"), %("a\#{ {{ x }} }b")
+  assert_format %("\#{{{macro_expression}}}"), %("\#{ {{ macro_expression }} }")
 
   assert_format "def foo\na = bar do\n1\nend\nend", "def foo\n  a = bar do\n    1\n  end\nend"
   assert_format "def foo\nend\ndef bar\nend", "def foo\nend\n\ndef bar\nend"
@@ -1853,7 +1874,7 @@ describe Crystal::Formatter do
   assert_format "{\n  \"foo\":    1,\n  \"babraz\": 2,\n}"
   assert_format "def foo\n  ((((((((((((((((0_u64\n    ) | ptr[0]) << 8\n    ) | ptr[1]) << 8\n    ) | ptr[2]) << 8\n    ) | ptr[3]) << 8\n    ) | ptr[4]) << 8\n    ) | ptr[5]) << 8\n    ) | ptr[6]) << 8\n    ) | ptr[7])\nend"
   assert_format "yield (1).foo"
-  assert_format "module Ton\n  macro foo\n    class {{name.id}}\n    end\n  end\nend"
+  assert_format "module Ton\n  macro foo\n    class {{name.id}}\n    end\n  end\nend", "module Ton\n  macro foo\n    class {{ name.id }}\n    end\n  end\nend"
   assert_format "a = 1\na ||= begin\n  1\nend"
   assert_format "if 1\n  return foo(\n    1,\n    2,\n  )\nend"
   assert_format "1\nyield\n2"
@@ -2093,7 +2114,7 @@ describe Crystal::Formatter do
   assert_format "foo { | a, ( b , (c, d) ) | a + b + c }", "foo { |a, (b, (c, d))| a + b + c }"
   assert_format "foo { | ( a, *b , c ) | a }", "foo { |(a, *b, c)| a }"
 
-  assert_format "def foo\n  {{@type}}\nend"
+  assert_format "def foo\n  {{@type}}\nend", "def foo\n  {{ @type }}\nend"
 
   assert_format "[\n  1, # foo\n  3,\n]"
   assert_format "[\n  1, 2, # foo\n  3,\n]"
@@ -2107,7 +2128,7 @@ describe Crystal::Formatter do
   assert_format %(x : {"foo bar": Int32})
 
   assert_format %(def foo("bar baz" qux)\nend)
-  assert_format "{ {{FOO}}, nil}", "{ {{FOO}}, nil }"
+  assert_format "{ {{FOO}}, nil}", "{ {{ FOO }}, nil }"
   assert_format "{ {% begin %}1{% end %}, nil }"
   assert_format "{ {% for x in 1..2 %}3{% end %}, nil }"
   assert_format "{ %() }"
@@ -2201,8 +2222,8 @@ describe Crystal::Formatter do
   assert_format "class X\n annotation  FooAnnotation  \n  end \n end", "class X\n  annotation FooAnnotation\n  end\nend"
 
   assert_format "macro foo\n{% verbatim do %}1 + 2{% end %}\nend"
-  assert_format "{% verbatim do %}{{1}} + {{2}}{% end %}"
-  assert_format "foo({% verbatim do %}{{1}} + {{2}}{% end %})"
+  assert_format "{% verbatim do %}{{1}} + {{2}}{% end %}", "{% verbatim do %}{{ 1 }} + {{ 2 }}{% end %}"
+  assert_format "foo({% verbatim do %}{{1}} + {{2}}{% end %})", "foo({% verbatim do %}{{ 1 }} + {{ 2 }}{% end %})"
 
   assert_format "{% foo <<-X\nbar\nX\n%}"
   assert_format "foo do\n  {% foo <<-X\n  bar\n  X\n  %}\nend"
@@ -2301,6 +2322,12 @@ describe Crystal::Formatter do
   assert_format(
     "macro foo\n" +
     "  {{x}}" +
+    "  <<-FOO\n" +
+    "    hello  \n" +
+    "  FOO\n" +
+    "end",
+    "macro foo\n" +
+    "  {{ x }}" +
     "  <<-FOO\n" +
     "    hello  \n" +
     "  FOO\n" +
@@ -2543,7 +2570,7 @@ describe Crystal::Formatter do
     end
     CRYSTAL
 
-  assert_format <<-CRYSTAL
+  assert_format <<-CRYSTAL, <<-CRYSTAL
     def foo(x)
       {% if true %}
         \\{% if true %}
@@ -2555,6 +2582,21 @@ describe Crystal::Formatter do
           x = 1
         \\{% end %}
         \\{{x}}
+        \\{% x %}
+      {% end %}
+    end
+    CRYSTAL
+    def foo(x)
+      {% if true %}
+        \\{% if true %}
+          x = 1
+        \\{% else %}
+          x = 2
+        \\{% end %}
+        \\{% for x in y %}
+          x = 1
+        \\{% end %}
+        \\{{ x }}
         \\{% x %}
       {% end %}
     end

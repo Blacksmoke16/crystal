@@ -628,6 +628,9 @@ module Crystal
           has_newline = wrote_comment || @token.type.newline?
           skip_space_or_newline
 
+          # Add space before macro expression to prevent #{{{
+          needs_space = exp.is_a?(MacroExpression) && exp.output?
+
           if has_newline
             write_line unless wrote_comment
             write_indent(@column + 2)
@@ -635,11 +638,14 @@ module Crystal
             wrote_comment = skip_space_or_newline
             write_line unless wrote_comment
           else
+            write " " if needs_space
             indent(@column, exp)
           end
 
           skip_space_or_newline
           check :OP_RCURLY
+          # Add space after macro expression to prevent }}}
+          write " " if needs_space
           write "}"
           @token.delimiter_state = delimiter_state
           next_string_token
@@ -1005,11 +1011,15 @@ module Crystal
     end
 
     def finish_list(suffix : Token::Kind, has_newlines, found_comment, found_first_newline, write_space_at_end)
+      # Check if we need space to prevent }}} or %}}
+      needs_space_before_brace = suffix.op_rcurly? && !@wrote_newline &&
+                                 (@line_output.to_s.ends_with?("}}") || @line_output.to_s.ends_with?("%}"))
+
       if @token.type == suffix && !found_first_newline
         if @wrote_newline
           write_indent
         else
-          write " " if write_space_at_end
+          write " " if write_space_at_end || needs_space_before_brace
         end
       else
         found_comment ||= skip_space_or_newline
@@ -1023,7 +1033,7 @@ module Crystal
             write_line
           end
           write_indent
-        elsif write_space_at_end
+        elsif write_space_at_end || needs_space_before_brace
           write " "
         end
         skip_space_or_newline
@@ -1931,9 +1941,7 @@ module Crystal
         end
       else
         skip_space_or_newline
-        if has_space || !node.output?
-          write " "
-        end
+        write " "
         indent(@column, node.exp)
       end
 
@@ -1945,11 +1953,11 @@ module Crystal
       if node.output?
         if @wrote_newline
           write_indent(old_column)
-        elsif has_space && !has_newline
-          write " "
         elsif has_newline
           write_line
           write_indent(old_column)
+        else
+          write " "
         end
         check :OP_RCURLY
         next_token
