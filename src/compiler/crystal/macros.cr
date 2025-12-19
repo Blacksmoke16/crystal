@@ -1204,7 +1204,7 @@ module Crystal::Macros
     end
   end
 
-  # An annotation on top of a type or variable.
+  # An annotation on top of a source code feature.
   class Annotation < ASTNode
     # Returns the name of this annotation.
     def name : Path
@@ -1227,6 +1227,25 @@ module Crystal::Macros
 
     # Returns a `NamedTupleLiteral` representing the named arguments on `self`.
     def named_args : NamedTupleLiteral
+    end
+
+    # Returns a `Call` to instantiate the annotation type at runtime.
+    # The annotation's `#args` and `#named_args` are passed to the annotation type's `.new` constructor.
+    # Missing optional positional/named arguments will use defaults defined on the constructor if present.
+    # If the args within the annotation do not map to a valid overload of `.new` a compile time error is raised;
+    # same as if you were instantiating the type manually.
+    #
+    # ```
+    # @[Annotation]
+    # record MyAnnotation, name : String, count : Int32 = 5
+    #
+    # @[MyAnnotation(name: "example")]
+    # class Foo; end
+    #
+    # {{ Foo.annotation(MyAnnotation).new_instance.stringify }}                         # => MyAnnotation.new(name: "example")
+    # {{ Foo.annotation(MyAnnotation).new_instance }} == MyAnnotation.new("example", 5) # => true
+    # ```
+    def new_instance : Call
     end
   end
 
