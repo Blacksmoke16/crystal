@@ -86,6 +86,9 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
                   elem.raise "@[Annotation] 'targets' array must contain string literals"
                 end
               end
+              if targets.empty?
+                named_arg.raise "@[Annotation] 'targets' array can't be empty"
+              end
               metadata.targets = targets
             else
               named_arg.raise "@[Annotation] 'targets' argument must be an array literal"

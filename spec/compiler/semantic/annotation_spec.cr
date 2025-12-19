@@ -1590,6 +1590,33 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
+    it "errors when targets array is empty" do
+      assert_error <<-CRYSTAL, "@[Annotation] 'targets' array can't be empty"
+        @[Annotation(targets: [] of String)]
+        class Foo
+        end
+        CRYSTAL
+    end
+
+    it "allows combining repeatable and targets" do
+      assert_type(<<-CRYSTAL) { int32 }
+        @[Annotation(repeatable: true, targets: ["class"])]
+        class Foo
+        end
+
+        @[Foo]
+        @[Foo]
+        class Bar
+        end
+
+        {% if Bar.annotations(Foo).size == 2 %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
     it "allows using @[Annotation] class as @[Foo]" do
       assert_type(<<-CRYSTAL) { int32 }
         @[Annotation]

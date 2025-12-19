@@ -2382,6 +2382,130 @@ module Crystal
         end
       end
 
+      describe "#annotation?" do
+        it "returns true for AnnotationType" do
+          assert_macro("{{type.annotation?}}", "true") do |program|
+            ann = AnnotationType.new(program, program, "SomeAnnotation")
+
+            {type: TypeNode.new(ann)}
+          end
+        end
+
+        it "returns true for @[Annotation] class" do
+          assert_macro("{{type.annotation?}}", "true") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+            klass.annotation_class = true
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+
+        it "returns false for regular class" do
+          assert_macro("{{type.annotation?}}", "false") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+
+        it "returns false for module" do
+          assert_macro("{{type.annotation?}}", "false") do |program|
+            mod = NonGenericModuleType.new(program, program, "SomeModule")
+
+            {type: TypeNode.new(mod)}
+          end
+        end
+      end
+
+      describe "#annotation_class?" do
+        it "returns true for @[Annotation] class" do
+          assert_macro("{{type.annotation_class?}}", "true") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+            klass.annotation_class = true
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+
+        it "returns false for AnnotationType" do
+          assert_macro("{{type.annotation_class?}}", "false") do |program|
+            ann = AnnotationType.new(program, program, "SomeAnnotation")
+
+            {type: TypeNode.new(ann)}
+          end
+        end
+
+        it "returns false for regular class" do
+          assert_macro("{{type.annotation_class?}}", "false") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+      end
+
+      describe "#annotation_repeatable?" do
+        it "returns true when repeatable" do
+          assert_macro("{{type.annotation_repeatable?}}", "true") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+            klass.annotation_class = true
+            metadata = AnnotationMetadata.new
+            metadata.repeatable = true
+            klass.annotation_metadata = metadata
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+
+        it "returns false when not repeatable" do
+          assert_macro("{{type.annotation_repeatable?}}", "false") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+            klass.annotation_class = true
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+
+        it "returns false for non-annotation class" do
+          assert_macro("{{type.annotation_repeatable?}}", "false") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+      end
+
+      describe "#annotation_targets" do
+        it "returns targets array when specified" do
+          assert_macro("{{type.annotation_targets}}", %(["class", "method"])) do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+            klass.annotation_class = true
+            metadata = AnnotationMetadata.new
+            metadata.targets = ["class", "method"]
+            klass.annotation_metadata = metadata
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+
+        it "returns nil when no targets specified" do
+          assert_macro("{{type.annotation_targets}}", "nil") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+            klass.annotation_class = true
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+
+        it "returns nil for non-annotation class" do
+          assert_macro("{{type.annotation_targets}}", "nil") do |program|
+            klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
+
+            {type: TypeNode.new(klass)}
+          end
+        end
+      end
+
       describe "#nilable?" do
         it false do
           assert_macro("{{x.nilable?}}", "false") do |program|

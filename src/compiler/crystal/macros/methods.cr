@@ -1960,6 +1960,36 @@ module Crystal
         interpret_check_args { BoolLiteral.new(type.class? && !type.struct?) }
       when "struct?"
         interpret_check_args { BoolLiteral.new(type.class? && type.struct?) }
+      when "annotation?"
+        interpret_check_args do
+          is_annotation = type.is_a?(AnnotationType) ||
+                          (type.is_a?(ClassType) && type.as(ClassType).annotation_class?)
+          BoolLiteral.new(is_annotation)
+        end
+      when "annotation_class?"
+        interpret_check_args do
+          BoolLiteral.new(type.is_a?(ClassType) && type.as(ClassType).annotation_class?)
+        end
+      when "annotation_repeatable?"
+        interpret_check_args do
+          if type.is_a?(ClassType) && type.as(ClassType).annotation_class?
+            BoolLiteral.new(type.as(ClassType).annotation_metadata.try(&.repeatable?) || false)
+          else
+            BoolLiteral.new(false)
+          end
+        end
+      when "annotation_targets"
+        interpret_check_args do
+          if type.is_a?(ClassType) && type.as(ClassType).annotation_class?
+            if targets = type.as(ClassType).annotation_metadata.try(&.targets)
+              ArrayLiteral.map(targets) { |t| StringLiteral.new(t) }
+            else
+              NilLiteral.new
+            end
+          else
+            NilLiteral.new
+          end
+        end
       when "nilable?"
         interpret_check_args { BoolLiteral.new(type.nilable?) }
       when "union_types"
