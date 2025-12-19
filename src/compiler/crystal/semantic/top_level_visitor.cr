@@ -72,6 +72,24 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
             else
               named_arg.raise "@[Annotation] 'repeatable' argument must be a boolean literal"
             end
+          when "targets"
+            if named_arg.value.is_a?(ArrayLiteral)
+              targets = [] of String
+              named_arg.value.as(ArrayLiteral).elements.each do |elem|
+                if elem.is_a?(StringLiteral)
+                  target = elem.as(StringLiteral).value
+                  unless target.in?("class", "method", "property", "parameter")
+                    elem.raise "@[Annotation] invalid target '#{target}' (valid targets: class, method, property, parameter)"
+                  end
+                  targets << target
+                else
+                  elem.raise "@[Annotation] 'targets' array must contain string literals"
+                end
+              end
+              metadata.targets = targets
+            else
+              named_arg.raise "@[Annotation] 'targets' argument must be an array literal"
+            end
           else
             named_arg.raise "@[Annotation] has no argument '#{named_arg.name}'"
           end
@@ -269,7 +287,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
         end
       end
 
-      type.add_annotation(annotation_type, ann)
+      type.add_annotation(annotation_type, ann, "class")
     end
 
     attach_doc type, node, annotations
@@ -469,7 +487,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
   def visit(node : Arg)
     if anns = node.parsed_annotations
       process_annotations anns do |annotation_type, ann|
-        node.add_annotation annotation_type, ann
+        node.add_annotation annotation_type, ann, "parameter"
       end
     end
 
@@ -486,7 +504,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
         process_def_primitive_annotation(node, ann)
       end
 
-      node.add_annotation(annotation_type, ann)
+      node.add_annotation(annotation_type, ann, "method")
     end
 
     node.doc ||= annotations_doc(annotations)

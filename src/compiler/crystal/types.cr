@@ -1216,6 +1216,7 @@ module Crystal
   # Metadata for @[Annotation] class types (repeatable, targets, etc.)
   class AnnotationMetadata
     property? repeatable : Bool = false
+    property targets : Array(String)?
   end
 
   # Abstract base type for classes and structs

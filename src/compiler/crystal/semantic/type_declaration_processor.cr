@@ -192,7 +192,7 @@ struct Crystal::TypeDeclarationProcessor
     var.location = location
 
     annotations.try &.each do |annotation_type, ann|
-      var.add_annotation(annotation_type, ann)
+      var.add_annotation(annotation_type, ann, "property")
     end
 
     vars[name] = var

@@ -1415,6 +1415,181 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
+    it "allows @[Annotation(targets: [\"class\"])] only on classes" do
+      assert_type(<<-CRYSTAL) { int32 }
+        @[Annotation(targets: ["class"])]
+        class Foo
+        end
+
+        @[Foo]
+        class Bar
+        end
+
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "errors when @[Annotation(targets: [\"class\"])] applied to method" do
+      assert_error <<-CRYSTAL, "@[Foo] cannot target method (allowed targets: class)"
+        @[Annotation(targets: ["class"])]
+        class Foo
+        end
+
+        class Bar
+          @[Foo]
+          def baz
+          end
+        end
+        CRYSTAL
+    end
+
+    it "allows @[Annotation(targets: [\"method\"])] only on methods" do
+      assert_type(<<-CRYSTAL) { int32 }
+        @[Annotation(targets: ["method"])]
+        class Foo
+        end
+
+        class Bar
+          @[Foo]
+          def baz
+          end
+        end
+
+        {% if Bar.methods.find(&.name.==("baz")).annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "errors when @[Annotation(targets: [\"method\"])] applied to class" do
+      assert_error <<-CRYSTAL, "@[Foo] cannot target class (allowed targets: method)"
+        @[Annotation(targets: ["method"])]
+        class Foo
+        end
+
+        @[Foo]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "allows @[Annotation(targets: [\"property\"])] only on instance vars" do
+      assert_type(<<-CRYSTAL) { int32 }
+        @[Annotation(targets: ["property"])]
+        class Foo
+        end
+
+        class Bar
+          @[Foo]
+          @x : Int32 = 0
+
+          def check
+            {% if @type.instance_vars.find(&.name.==("x")).annotation(Foo) %}
+              1
+            {% else %}
+              'a'
+            {% end %}
+          end
+        end
+
+        Bar.new.check
+        CRYSTAL
+    end
+
+    it "errors when @[Annotation(targets: [\"property\"])] applied to class" do
+      assert_error <<-CRYSTAL, "@[Foo] cannot target class (allowed targets: property)"
+        @[Annotation(targets: ["property"])]
+        class Foo
+        end
+
+        @[Foo]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "allows @[Annotation(targets: [\"parameter\"])] only on parameters" do
+      assert_type(<<-CRYSTAL) { int32 }
+        @[Annotation(targets: ["parameter"])]
+        class Foo
+        end
+
+        class Bar
+          def baz(@[Foo] x : Int32)
+          end
+        end
+
+        {% if Bar.methods.find(&.name.==("baz")).args.first.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "errors when @[Annotation(targets: [\"parameter\"])] applied to class" do
+      assert_error <<-CRYSTAL, "@[Foo] cannot target class (allowed targets: parameter)"
+        @[Annotation(targets: ["parameter"])]
+        class Foo
+        end
+
+        @[Foo]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "allows multiple targets" do
+      assert_type(<<-CRYSTAL) { int32 }
+        @[Annotation(targets: ["class", "method"])]
+        class Foo
+        end
+
+        @[Foo]
+        class Bar
+          @[Foo]
+          def baz
+          end
+        end
+
+        {% if Bar.annotation(Foo) && Bar.methods.find(&.name.==("baz")).annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "errors on invalid target string" do
+      assert_error <<-CRYSTAL, "@[Annotation] invalid target 'invalid' (valid targets: class, method, property, parameter)"
+        @[Annotation(targets: ["invalid"])]
+        class Foo
+        end
+        CRYSTAL
+    end
+
+    it "errors when targets argument is not an array" do
+      assert_error <<-CRYSTAL, "@[Annotation] 'targets' argument must be an array literal"
+        @[Annotation(targets: "class")]
+        class Foo
+        end
+        CRYSTAL
+    end
+
+    it "errors when targets array contains non-string" do
+      assert_error <<-CRYSTAL, "@[Annotation] 'targets' array must contain string literals"
+        @[Annotation(targets: [1])]
+        class Foo
+        end
+        CRYSTAL
+    end
+
     it "allows using @[Annotation] class as @[Foo]" do
       assert_type(<<-CRYSTAL) { int32 }
         @[Annotation]
