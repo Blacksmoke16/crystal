@@ -13,42 +13,30 @@ module Crystal
     end
 
     # Returns the last defined annotation with the given type, if any, or `nil` otherwise.
-    # For annotation classes, also checks if the stored annotation inherits from annotation_type.
     def annotation(annotation_type : AnnotationKey) : Annotation?
-      # Direct match first
-      if result = @annotations.try &.[annotation_type]?.try &.last?
-        return result
-      end
-
-      # Check for inheritance (annotation classes only)
-      @annotations.try &.each do |stored_type, anns|
-        next if stored_type == annotation_type
-        if stored_type.is_a?(ClassType) && stored_type.annotation_class?
-          if stored_type.ancestors.includes?(annotation_type)
-            return anns.last?
-          end
-        end
-      end
-
-      nil
+      @annotations.try &.[annotation_type]?.try &.last?
     end
 
     # Returns all annotations with the given type, if any, or `nil` otherwise.
-    # For annotation classes, also returns annotations that inherit from annotation_type.
-    def annotations(annotation_type : AnnotationKey) : Array(Annotation)?
+    # If recursive is true, also returns annotations whose types inherit from or include annotation_type.
+    def annotations(annotation_type : Type, recursive : Bool = false) : Array(Annotation)?
       results = [] of Annotation
 
-      # Direct matches
-      if direct = @annotations.try &.[annotation_type]?
-        results.concat(direct)
+      # Direct matches (only possible if type is an AnnotationKey)
+      if annotation_type.is_a?(AnnotationKey)
+        if direct = @annotations.try &.[annotation_type]?
+          results.concat(direct)
+        end
       end
 
-      # Check for inheritance (annotation classes only)
-      @annotations.try &.each do |stored_type, anns|
-        next if stored_type == annotation_type
-        if stored_type.is_a?(ClassType) && stored_type.annotation_class?
-          if stored_type.ancestors.includes?(annotation_type)
-            results.concat(anns)
+      # Check for inheritance/inclusion if requested
+      if recursive
+        @annotations.try &.each do |stored_type, anns|
+          next if stored_type == annotation_type
+          if stored_type.is_a?(ClassType) && stored_type.annotation_class?
+            if stored_type.ancestors.includes?(annotation_type)
+              results.concat(anns)
+            end
           end
         end
       end

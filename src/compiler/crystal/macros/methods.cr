@@ -1354,8 +1354,8 @@ module Crystal
           self.var.annotation(type)
         end
       when "annotations"
-        fetch_annotations(self, method, args, named_args, block) do |type|
-          annotations = type ? self.var.annotations(type) : self.var.all_annotations
+        fetch_annotations(self, method, args, named_args, block) do |type, recursive|
+          annotations = type ? self.var.annotations(type, recursive) : self.var.all_annotations
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
@@ -1528,8 +1528,8 @@ module Crystal
           self.annotation(type)
         end
       when "annotations"
-        fetch_annotations(self, method, args, named_args, block) do |type|
-          annotations = type ? self.annotations(type) : self.all_annotations
+        fetch_annotations(self, method, args, named_args, block) do |type, recursive|
+          annotations = type ? self.annotations(type, recursive) : self.all_annotations
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
@@ -1581,8 +1581,8 @@ module Crystal
           self.annotation(type)
         end
       when "annotations"
-        fetch_annotations(self, method, args, named_args, block) do |type|
-          annotations = type ? self.annotations(type) : self.all_annotations
+        fetch_annotations(self, method, args, named_args, block) do |type, recursive|
+          annotations = type ? self.annotations(type, recursive) : self.all_annotations
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
@@ -2009,8 +2009,8 @@ module Crystal
           self.type.annotation(type)
         end
       when "annotations"
-        fetch_annotations(self, method, args, named_args, block) do |type|
-          annotations = type ? self.type.annotations(type) : self.type.all_annotations
+        fetch_annotations(self, method, args, named_args, block) do |type, recursive|
+          annotations = type ? self.type.annotations(type, recursive) : self.type.all_annotations
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
@@ -3451,31 +3451,42 @@ private def fetch_annotation(node, method, args, named_args, block, &)
     end
 
     type = arg.type
-    unless type.is_a?(Crystal::AnnotationType) || (type.is_a?(Crystal::ClassType) && type.annotation_class?)
+
+    is_annotation_type = type.is_a?(Crystal::AnnotationType) ||
+                         (type.is_a?(Crystal::ClassType) && type.annotation_class?)
+
+    unless is_annotation_type
       args[0].raise "argument to '#{node.class_desc}#annotation' must be an annotation type, not #{type} (#{type.type_desc})"
     end
 
-    value = yield type
+    # Cast to AnnotationKey - we know it's valid at this point
+    annotation_key = type.as(Crystal::AnnotationKey)
+
+    value = yield annotation_key
     value || Crystal::NilLiteral.new
   end
 end
 
 private def fetch_annotations(node, method, args, named_args, block, &)
-  interpret_check_args(node: node, min_count: 0) do |arg|
+  interpret_check_args(node: node, min_count: 0, named_params: ["recursive"]) do |arg|
+    recursive = false
+    if named_args
+      if rec = named_args["recursive"]?
+        recursive = rec.truthy?
+      end
+    end
+
     unless arg
-      return yield(nil) || Crystal::NilLiteral.new
+      return yield(nil, recursive) || Crystal::NilLiteral.new
     end
 
     unless arg.is_a?(Crystal::TypeNode)
-      args[0].raise "argument to '#{node.class_desc}#annotation' must be a TypeNode, not #{arg.class_desc}"
+      args[0].raise "argument to '#{node.class_desc}#annotations' must be a TypeNode, not #{arg.class_desc}"
     end
 
     type = arg.type
-    unless type.is_a?(Crystal::AnnotationType) || (type.is_a?(Crystal::ClassType) && type.annotation_class?)
-      args[0].raise "argument to '#{node.class_desc}#annotation' must be an annotation type, not #{type} (#{type.type_desc})"
-    end
 
-    value = yield type
+    value = yield type, recursive
     value || Crystal::NilLiteral.new
   end
 end

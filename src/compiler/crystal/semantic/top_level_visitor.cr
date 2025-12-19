@@ -56,6 +56,9 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     # Check for @[Annotation] meta-annotation
     annotations.try &.reject! do |ann|
       if ann.path.single?("Annotation")
+        if node.abstract?
+          ann.raise "can't use @[Annotation] on abstract type"
+        end
         node.annotation = true
         true # remove from list
       else
@@ -274,6 +277,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     check_outside_exp node, "declare module"
 
     annotations = read_annotations
+    reject_annotation_meta_annotation(annotations, "a module")
 
     scope, name, type = lookup_type_def(node)
 
@@ -320,6 +324,15 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     false
   end
 
+  # Rejects @[Annotation] meta-annotation - only class/struct definitions should allow it
+  private def reject_annotation_meta_annotation(annotations, type_desc : String)
+    annotations.try &.each do |ann|
+      if ann.path.single?("Annotation")
+        ann.raise "can't use @[Annotation] on #{type_desc}"
+      end
+    end
+  end
+
   private def check_reopened_generic(generic, node, new_type_vars)
     generic_type_vars = generic.type_vars
     if new_type_vars != generic_type_vars || node.splat_index != generic.splat_index
@@ -347,6 +360,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     check_outside_exp node, "declare annotation"
 
     annotations = read_annotations
+    reject_annotation_meta_annotation(annotations, "an annotation")
     process_annotations(annotations) do |annotation_type, ann|
       node.add_annotation(annotation_type, ann)
     end
@@ -373,6 +387,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     check_outside_exp node, "declare alias"
 
     annotations = read_annotations
+    reject_annotation_meta_annotation(annotations, "an alias")
 
     scope, name, existing_type = lookup_type_def(node)
 
@@ -568,6 +583,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     check_outside_exp node, "declare lib"
 
     annotations = read_annotations
+    reject_annotation_meta_annotation(annotations, "a lib")
 
     scope, name, type = lookup_type_def(node)
 
@@ -687,6 +703,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     check_outside_exp node, "declare enum"
 
     annotations = read_annotations
+    reject_annotation_meta_annotation(annotations, "an enum")
 
     scope, name, enum_type = lookup_type_def(node)
 

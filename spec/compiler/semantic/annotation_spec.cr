@@ -1301,17 +1301,52 @@ describe "Semantic: annotation" do
       type.as(ClassType).struct?.should be_true
     end
 
-    it "declares @[Annotation] abstract class" do
-      result = semantic(<<-CRYSTAL)
+    it "errors on @[Annotation] abstract class" do
+      assert_error <<-CRYSTAL, "can't use @[Annotation] on abstract type"
         @[Annotation]
         abstract class Foo
         end
         CRYSTAL
+    end
 
-      type = result.program.types["Foo"]
-      type.should be_a(NonGenericClassType)
-      type.as(ClassType).annotation_class?.should be_true
-      type.as(ClassType).abstract?.should be_true
+    it "errors on @[Annotation] module" do
+      assert_error <<-CRYSTAL, "can't use @[Annotation] on a module"
+        @[Annotation]
+        module Foo
+        end
+        CRYSTAL
+    end
+
+    it "errors on @[Annotation] lib" do
+      assert_error <<-CRYSTAL, "can't use @[Annotation] on a lib"
+        @[Annotation]
+        lib Foo
+        end
+        CRYSTAL
+    end
+
+    it "errors on @[Annotation] enum" do
+      assert_error <<-CRYSTAL, "can't use @[Annotation] on an enum"
+        @[Annotation]
+        enum Foo
+          A
+        end
+        CRYSTAL
+    end
+
+    it "errors on @[Annotation] alias" do
+      assert_error <<-CRYSTAL, "can't use @[Annotation] on an alias"
+        @[Annotation]
+        alias Foo = Int32
+        CRYSTAL
+    end
+
+    it "errors on @[Annotation] annotation" do
+      assert_error <<-CRYSTAL, "can't use @[Annotation] on an annotation"
+        @[Annotation]
+        annotation Foo
+        end
+        CRYSTAL
     end
 
     it "allows using @[Annotation] class as @[Foo]" do
@@ -1332,9 +1367,8 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
-    it "allows @[Annotation] class inheritance" do
+    it "allows @[Annotation] class inheritance from non-annotation parent" do
       assert_no_errors <<-CRYSTAL
-        @[Annotation]
         abstract class Constraint
         end
 
@@ -1344,31 +1378,8 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
-    it "finds child annotations via parent type" do
+    it "finds all child annotations via parent type with recursive" do
       assert_type(<<-CRYSTAL) { int32 }
-        @[Annotation]
-        abstract class Constraint
-        end
-
-        @[Annotation]
-        class NotBlank < Constraint
-        end
-
-        @[NotBlank]
-        class Foo
-        end
-
-        {% if Foo.annotation(Constraint) %}
-          1
-        {% else %}
-          'a'
-        {% end %}
-        CRYSTAL
-    end
-
-    it "finds all child annotations via parent type" do
-      assert_type(<<-CRYSTAL) { int32 }
-        @[Annotation]
         abstract class Constraint
         end
 
@@ -1385,7 +1396,50 @@ describe "Semantic: annotation" do
         class Foo
         end
 
-        {% if Foo.annotations(Constraint).size == 2 %}
+        {% if Foo.annotations(Constraint, recursive: true).size == 2 %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "finds annotations via module with recursive" do
+      assert_type(<<-CRYSTAL) { int32 }
+        module Validatable
+        end
+
+        @[Annotation]
+        class NotBlank
+          include Validatable
+        end
+
+        @[NotBlank]
+        class Foo
+        end
+
+        {% if Foo.annotations(Validatable, recursive: true).size == 1 %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "returns empty array for unrelated type" do
+      assert_type(<<-CRYSTAL) { int32 }
+        class Unrelated
+        end
+
+        @[Annotation]
+        class NotBlank
+        end
+
+        @[NotBlank]
+        class Foo
+        end
+
+        {% if Foo.annotations(Unrelated).empty? %}
           1
         {% else %}
           'a'
@@ -1813,28 +1867,26 @@ describe "Semantic: annotation" do
 
     it "does not allow providing a parent initializer's params when child defines own" do
       assert_error <<-CRYSTAL, "@[Child] has no parameter 'message'"
-          @[Annotation]
         abstract class Parent
-            def initialize(@message : String)
-            end
+          def initialize(@message : String)
           end
+        end
 
-          @[Annotation]
+        @[Annotation]
         class Child < Parent
-            def initialize(@id : Int32)
-              super "foo"
-            end
+          def initialize(@id : Int32)
+            super "foo"
           end
+        end
 
-          @[Child(message: "bar")]
-          class Bar
-          end
+        @[Child(message: "bar")]
+        class Bar
+        end
         CRYSTAL
     end
 
-    it "accepts parent's initialize params when child has no initialize" do
+    it "uses child's initialize params, not parent's" do
       assert_type(<<-CRYSTAL) { int32 }
-        @[Annotation]
         abstract class Parent
           def initialize(@message : String)
           end
