@@ -561,24 +561,57 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
 
     # Validate positional args
     ann.args.each_with_index do |arg, index|
-      unless positional_arg_valid_in_any_overload?(all_constructors, index, arg)
-        arg.raise "@[#{annotation_type}] argument at position #{index} doesn't match any constructor parameter"
-      end
+      validate_positional_arg(all_constructors, annotation_type, arg, index)
     end
 
     # Validate named args
     ann.named_args.try &.each do |named_arg|
-      unless named_arg_valid_in_any_overload?(all_constructors, named_arg)
-        named_arg.raise "@[#{annotation_type}] has no parameter '#{named_arg.name}'"
-      end
+      validate_named_arg(all_constructors, annotation_type, named_arg)
     end
   end
 
-  # Checks if positional arg at given index is valid in any initialize overload
-  private def positional_arg_valid_in_any_overload?(init_defs : Array(Def), index : Int32, arg : ASTNode) : Bool
-    init_defs.any? do |init_def|
-      param = param_at_positional_index(init_def, index)
-      param && literal_matches_restriction?(arg, param.restriction)
+  # Validates a named argument against all constructors, raising on error
+  private def validate_named_arg(constructors : Array(Def), annotation_type : ClassType, named_arg : NamedArgument)
+    found_param : Arg? = nil
+
+    constructors.each do |constructor|
+      param = constructor.args.find { |arg| arg.external_name == named_arg.name }
+      param ||= constructor.double_splat # double splat accepts any named arg
+
+      if param
+        found_param = param
+        return if literal_matches_restriction?(named_arg.value, param.restriction)
+      end
+    end
+
+    if found_param
+      actual_type = named_arg.value.runtime_type || "expression"
+      expected_type = found_param.restriction.try(&.to_s) || "any"
+      named_arg.raise "@[#{annotation_type}] parameter '#{named_arg.name}' expects #{expected_type}, not #{actual_type}"
+    else
+      named_arg.raise "@[#{annotation_type}] has no parameter '#{named_arg.name}'"
+    end
+  end
+
+  # Validates a positional argument against all constructors, raising on error
+  private def validate_positional_arg(constructors : Array(Def), annotation_type : ClassType, arg : ASTNode, index : Int32)
+    found_param : Arg? = nil
+
+    constructors.each do |constructor|
+      param = param_at_positional_index(constructor, index)
+
+      if param
+        found_param = param
+        return if literal_matches_restriction?(arg, param.restriction)
+      end
+    end
+
+    if found_param
+      actual_type = arg.runtime_type || "expression"
+      expected_type = found_param.restriction.try(&.to_s) || "any"
+      arg.raise "@[#{annotation_type}] argument at position #{index} expects #{expected_type}, not #{actual_type}"
+    else
+      arg.raise "@[#{annotation_type}] has too many arguments (expected at most #{index})"
     end
   end
 
@@ -597,15 +630,6 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
       end
     else
       init_def.args[index]?
-    end
-  end
-
-  # Checks if named arg exists in any initialize overload
-  private def named_arg_valid_in_any_overload?(init_defs : Array(Def), named_arg : NamedArgument) : Bool
-    init_defs.any? do |init_def|
-      param = init_def.args.find { |arg| arg.external_name == named_arg.name }
-      param ||= init_def.double_splat # double splat accepts any named arg
-      param && literal_matches_restriction?(named_arg.value, param.restriction)
     end
   end
 

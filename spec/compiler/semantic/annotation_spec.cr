@@ -1475,7 +1475,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates positional arg count" do
-      assert_error <<-CRYSTAL, "@[Foo] argument at position 1 doesn't match any constructor parameter"
+      assert_error <<-CRYSTAL, "@[Foo] has too many arguments (expected at most 1)"
         @[Annotation]
         class Foo
           def initialize(@message : String)
@@ -1489,7 +1489,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates named arg type (string vs number)" do
-      assert_error <<-CRYSTAL, "@[Foo] has no parameter 'message'"
+      assert_error <<-CRYSTAL, "@[Foo] parameter 'message' expects String, not Int32"
         @[Annotation]
         class Foo
           def initialize(@message : String)
@@ -1503,7 +1503,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates positional arg type" do
-      assert_error <<-CRYSTAL, "@[Foo] argument at position 0 doesn't match any constructor parameter"
+      assert_error <<-CRYSTAL, "@[Foo] argument at position 0 expects Int32, not String"
         @[Annotation]
         class Foo
           def initialize(@count : Int32)
@@ -1581,7 +1581,7 @@ describe "Semantic: annotation" do
     end
 
     it "validates union type mismatch" do
-      assert_error <<-CRYSTAL, "@[Foo] argument at position 0 doesn't match any constructor parameter"
+      assert_error <<-CRYSTAL, "@[Foo] argument at position 0 expects String | Int32, not Symbol"
         @[Annotation]
         class Foo
           def initialize(@value : String | Int32)
@@ -1927,7 +1927,7 @@ describe "Semantic: annotation" do
     end
 
     it "rejects private initialize params when self.new exists" do
-      assert_error <<-CRYSTAL, "@[Size] argument at position 0 doesn't match any constructor parameter"
+      assert_error <<-CRYSTAL, "@[Size] argument at position 0 expects Range(Int32, Int32), not Int32"
         @[Annotation]
         class Size
           def self.new(range : Range(Int32, Int32))
