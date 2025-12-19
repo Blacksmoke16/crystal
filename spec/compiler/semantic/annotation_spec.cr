@@ -1349,6 +1349,72 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
+    it "errors when @[Annotation] class applied more than once by default" do
+      assert_error <<-CRYSTAL, "@[Foo] cannot be repeated"
+        @[Annotation]
+        class Foo
+        end
+
+        @[Foo]
+        @[Foo]
+        class Bar
+        end
+        CRYSTAL
+    end
+
+    it "allows @[Annotation(repeatable: true)] class to be applied multiple times" do
+      assert_type(<<-CRYSTAL) { int32 }
+        @[Annotation(repeatable: true)]
+        class Foo
+        end
+
+        @[Foo]
+        @[Foo]
+        class Bar
+        end
+
+        {% if Bar.annotations(Foo).size == 2 %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "traditional annotations still allow duplicates" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation Foo
+        end
+
+        @[Foo]
+        @[Foo]
+        class Bar
+        end
+
+        {% if Bar.annotations(Foo).size == 2 %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "errors on invalid @[Annotation] argument" do
+      assert_error <<-CRYSTAL, "@[Annotation] has no argument 'invalid'"
+        @[Annotation(invalid: true)]
+        class Foo
+        end
+        CRYSTAL
+    end
+
+    it "errors when repeatable argument is not a boolean" do
+      assert_error <<-CRYSTAL, "@[Annotation] 'repeatable' argument must be a boolean literal"
+        @[Annotation(repeatable: "yes")]
+        class Foo
+        end
+        CRYSTAL
+    end
+
     it "allows using @[Annotation] class as @[Foo]" do
       assert_type(<<-CRYSTAL) { int32 }
         @[Annotation]

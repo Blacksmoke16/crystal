@@ -54,12 +54,30 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     annotations = read_annotations
 
     # Check for @[Annotation] meta-annotation
+    annotation_metadata : AnnotationMetadata? = nil
     annotations.try &.reject! do |ann|
       if ann.path.single?("Annotation")
         if node.abstract?
           ann.raise "can't use @[Annotation] on abstract type"
         end
         node.annotation = true
+
+        # Parse metadata arguments
+        metadata = AnnotationMetadata.new
+        ann.named_args.try &.each do |named_arg|
+          case named_arg.name
+          when "repeatable"
+            if named_arg.value.is_a?(BoolLiteral)
+              metadata.repeatable = named_arg.value.as(BoolLiteral).value
+            else
+              named_arg.raise "@[Annotation] 'repeatable' argument must be a boolean literal"
+            end
+          else
+            named_arg.raise "@[Annotation] has no argument '#{named_arg.name}'"
+          end
+        end
+        annotation_metadata = metadata
+
         true # remove from list
       else
         false # keep in list
@@ -124,6 +142,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
         type.abstract = node.abstract?
         type.struct = node.struct?
         type.annotation_class = node.annotation?
+        type.annotation_metadata = annotation_metadata
       in .reference_storage_type?
         type_vars = node.type_vars
         case

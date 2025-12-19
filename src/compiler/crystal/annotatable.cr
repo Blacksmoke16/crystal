@@ -5,8 +5,18 @@ module Crystal
   module Annotatable
     property annotations : Hash(AnnotationKey, Array(Annotation))?
 
-    # Adds an annotation with the given type and value
+    # Adds an annotation with the given type and value.
+    # For @[Annotation] classes, validates that non-repeatable annotations aren't duplicated.
     def add_annotation(annotation_type : AnnotationKey, value : Annotation)
+      # Check for duplicate non-repeatable annotation classes
+      if annotation_type.is_a?(ClassType) && annotation_type.annotation_class?
+        if self.annotation(annotation_type)
+          unless annotation_type.annotation_metadata.try &.repeatable?
+            value.raise "@[#{annotation_type}] cannot be repeated"
+          end
+        end
+      end
+
       annotations = @annotations ||= {} of AnnotationKey => Array(Annotation)
       annotations[annotation_type] ||= [] of Annotation
       annotations[annotation_type] << value
