@@ -1646,7 +1646,7 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
-    it "finds all child annotations via parent type with recursive" do
+    it "finds all child annotations via parent type with is_a" do
       assert_type(<<-CRYSTAL) { int32 }
         abstract class Constraint
         end
@@ -1664,7 +1664,7 @@ describe "Semantic: annotation" do
         class Foo
         end
 
-        {% if Foo.annotations(Constraint, recursive: true).size == 2 %}
+        {% if Foo.annotations(Constraint, is_a: true).size == 2 %}
           1
         {% else %}
           'a'
@@ -1672,7 +1672,7 @@ describe "Semantic: annotation" do
         CRYSTAL
     end
 
-    it "finds annotations via module with recursive" do
+    it "finds annotations via module with is_a" do
       assert_type(<<-CRYSTAL) { int32 }
         module Validatable
         end
@@ -1686,7 +1686,7 @@ describe "Semantic: annotation" do
         class Foo
         end
 
-        {% if Foo.annotations(Validatable, recursive: true).size == 1 %}
+        {% if Foo.annotations(Validatable, is_a: true).size == 1 %}
           1
         {% else %}
           'a'

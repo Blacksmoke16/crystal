@@ -1196,8 +1196,8 @@ module Crystal::Macros
     # Returns an array of annotations with the given `type`
     # attached to this variable, or an empty `ArrayLiteral` if there are none.
     #
-    # If *recursive* is `true`, also returns annotations whose types inherit from or include *type*.
-    def annotations(type : TypeNode, recursive : BoolLiteral = false) : ArrayLiteral(Annotation)
+    # If *is_a* is `true`, also returns annotations whose types inherit from or include *type*.
+    def annotations(type : TypeNode, is_a : BoolLiteral = false) : ArrayLiteral(Annotation)
     end
 
     # Returns an array of all annotations attached to this
@@ -1427,8 +1427,8 @@ module Crystal::Macros
     # Returns an array of annotations with the given `type`
     # attached to this arg, or an empty `ArrayLiteral` if there are none.
     #
-    # If *recursive* is `true`, also returns annotations whose types inherit from or include *type*.
-    def annotations(type : TypeNode, recursive : BoolLiteral = false) : ArrayLiteral(Annotation)
+    # If *is_a* is `true`, also returns annotations whose types inherit from or include *type*.
+    def annotations(type : TypeNode, is_a : BoolLiteral = false) : ArrayLiteral(Annotation)
     end
 
     # Returns an array of all annotations attached to this
@@ -1538,8 +1538,8 @@ module Crystal::Macros
     # Returns an array of annotations with the given `type`
     # attached to this method, or an empty `ArrayLiteral` if there are none.
     #
-    # If *recursive* is `true`, also returns annotations whose types inherit from or include *type*.
-    def annotations(type : TypeNode, recursive : BoolLiteral = false) : ArrayLiteral(Annotation)
+    # If *is_a* is `true`, also returns annotations whose types inherit from or include *type*.
+    def annotations(type : TypeNode, is_a : BoolLiteral = false) : ArrayLiteral(Annotation)
     end
 
     # Returns an array of all annotations attached to this
@@ -2976,8 +2976,8 @@ module Crystal::Macros
     # Returns an array of annotations with the given `type`
     # attached to this type, or an empty `ArrayLiteral` if there are none.
     #
-    # If *recursive* is `true`, also returns annotations whose types inherit from or include *type*.
-    def annotations(type : TypeNode, recursive : BoolLiteral = false) : ArrayLiteral(Annotation)
+    # If *is_a* is `true`, also returns annotations whose types inherit from or include *type*.
+    def annotations(type : TypeNode, is_a : BoolLiteral = false) : ArrayLiteral(Annotation)
     end
 
     # Returns an array of all annotations attached to this

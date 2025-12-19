@@ -1354,8 +1354,8 @@ module Crystal
           self.var.annotation(type)
         end
       when "annotations"
-        fetch_annotations(self, method, args, named_args, block) do |type, recursive|
-          annotations = type ? self.var.annotations(type, recursive) : self.var.all_annotations
+        fetch_annotations(self, method, args, named_args, block) do |type, is_a|
+          annotations = type ? self.var.annotations(type, is_a) : self.var.all_annotations
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
@@ -1528,8 +1528,8 @@ module Crystal
           self.annotation(type)
         end
       when "annotations"
-        fetch_annotations(self, method, args, named_args, block) do |type, recursive|
-          annotations = type ? self.annotations(type, recursive) : self.all_annotations
+        fetch_annotations(self, method, args, named_args, block) do |type, is_a|
+          annotations = type ? self.annotations(type, is_a) : self.all_annotations
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
@@ -1581,8 +1581,8 @@ module Crystal
           self.annotation(type)
         end
       when "annotations"
-        fetch_annotations(self, method, args, named_args, block) do |type, recursive|
-          annotations = type ? self.annotations(type, recursive) : self.all_annotations
+        fetch_annotations(self, method, args, named_args, block) do |type, is_a|
+          annotations = type ? self.annotations(type, is_a) : self.all_annotations
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
@@ -2039,8 +2039,8 @@ module Crystal
           self.type.annotation(type)
         end
       when "annotations"
-        fetch_annotations(self, method, args, named_args, block) do |type, recursive|
-          annotations = type ? self.type.annotations(type, recursive) : self.type.all_annotations
+        fetch_annotations(self, method, args, named_args, block) do |type, is_a|
+          annotations = type ? self.type.annotations(type, is_a) : self.type.all_annotations
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
@@ -3498,16 +3498,16 @@ private def fetch_annotation(node, method, args, named_args, block, &)
 end
 
 private def fetch_annotations(node, method, args, named_args, block, &)
-  interpret_check_args(node: node, min_count: 0, named_params: ["recursive"]) do |arg|
-    recursive = false
+  interpret_check_args(node: node, min_count: 0, named_params: ["is_a"]) do |arg|
+    is_a = false
     if named_args
-      if rec = named_args["recursive"]?
-        recursive = rec.truthy?
+      if is_a_arg = named_args["is_a"]?
+        is_a = is_a_arg.truthy?
       end
     end
 
     unless arg
-      return yield(nil, recursive) || Crystal::NilLiteral.new
+      return yield(nil, is_a) || Crystal::NilLiteral.new
     end
 
     unless arg.is_a?(Crystal::TypeNode)
@@ -3516,7 +3516,7 @@ private def fetch_annotations(node, method, args, named_args, block, &)
 
     type = arg.type
 
-    value = yield type, recursive
+    value = yield type, is_a
     value || Crystal::NilLiteral.new
   end
 end
