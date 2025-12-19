@@ -88,7 +88,7 @@ module Crystal
     end
 
     def self.class_desc : String
-      {{@type.name.split("::").last.id.stringify}}
+      {{ @type.name.split("::").last.id.stringify }}
     end
 
     def class_desc

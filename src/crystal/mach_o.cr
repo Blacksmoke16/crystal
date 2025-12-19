@@ -302,8 +302,8 @@ module Crystal
         end
 
         {% for flag in %w(UNDF ABS SECT PBUD INDR) %}
-          def {{flag.downcase.id}}?
-            (value & TYPE) == {{flag.id}}
+          def {{ flag.downcase.id }}?
+            (value & TYPE) == {{ flag.id }}
           end
         {% end %}
 

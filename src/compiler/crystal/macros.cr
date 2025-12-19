@@ -11,7 +11,7 @@ private macro def_string_methods(klass)
   end
 
   # Similar to `String#[]`.
-  def [](range : RangeLiteral) : {{klass}}
+  def [](range : RangeLiteral) : {{ klass }}
   end
 
   # Similar to `String#matches?`.
@@ -19,15 +19,15 @@ private macro def_string_methods(klass)
   end
 
   # Similar to `String#+`.
-  def +(other : StringLiteral | CharLiteral) : {{klass}}
+  def +(other : StringLiteral | CharLiteral) : {{ klass }}
   end
 
   # Similar to `String#camelcase`.
-  def camelcase(*, lower : BoolLiteral = false) : {{klass}}
+  def camelcase(*, lower : BoolLiteral = false) : {{ klass }}
   end
 
   # Similar to `String#capitalize`.
-  def capitalize : {{klass}}
+  def capitalize : {{ klass }}
   end
 
   # Similar to `String#chars`.
@@ -35,7 +35,7 @@ private macro def_string_methods(klass)
   end
 
   # Similar to `String#chomp`.
-  def chomp : {{klass}}
+  def chomp : {{ klass }}
   end
 
   # Similar to `String#count`.
@@ -43,7 +43,7 @@ private macro def_string_methods(klass)
   end
 
   # Similar to `String#downcase`.
-  def downcase : {{klass}}
+  def downcase : {{ klass }}
   end
 
   # Similar to `String#empty?`.
@@ -57,11 +57,11 @@ private macro def_string_methods(klass)
   # Similar to `String#gsub(pattern, options, &)`.
   #
   # NOTE: The special variables `$~` and `$1`, `$2`, ... are not supported.
-  def gsub(regex : RegexLiteral, & : StringLiteral, ArrayLiteral(StringLiteral | NilLiteral) -> _) : {{klass}}
+  def gsub(regex : RegexLiteral, & : StringLiteral, ArrayLiteral(StringLiteral | NilLiteral) -> _) : {{ klass }}
   end
 
   # Similar to `String#gsub`.
-  def gsub(regex : RegexLiteral, replacement : StringLiteral) : {{klass}}
+  def gsub(regex : RegexLiteral, replacement : StringLiteral) : {{ klass }}
   end
 
   # Similar to `String#includes?`.
@@ -115,11 +115,11 @@ private macro def_string_methods(klass)
   end
 
   # Similar to `String#strip`.
-  def strip : {{klass}}
+  def strip : {{ klass }}
   end
 
   # Similar to `String#titleize`.
-  def titleize : {{klass}}
+  def titleize : {{ klass }}
   end
 
   # Similar to `String#to_i`.
@@ -141,15 +141,15 @@ private macro def_string_methods(klass)
   end
 
   # Similar to `String#tr`.
-  def tr(from : StringLiteral, to : StringLiteral) : {{klass}}
+  def tr(from : StringLiteral, to : StringLiteral) : {{ klass }}
   end
 
   # Similar to `String#underscore`.
-  def underscore : {{klass}}
+  def underscore : {{ klass }}
   end
 
   # Similar to `String#upcase`.
-  def upcase : {{klass}}
+  def upcase : {{ klass }}
   end
 end
 
@@ -413,8 +413,8 @@ module Crystal::Macros
     #
     # ```
     # macro define_method(name, content)
-    #   def {{name.id}}
-    #     {{content}}
+    #   def {{ name.id }}
+    #     {{ content }}
     #   end
     # end
     #
@@ -2506,7 +2506,7 @@ module Crystal::Macros
   #
   # ```
   # {% for x in exp %}
-  #   puts {{x}}
+  #   puts {{ x }}
   # {% end %}
   # ```
   class MacroFor < ASTNode
@@ -2713,10 +2713,10 @@ module Crystal::Macros
     #
     # abstract class Four; end
     #
-    # {{One.abstract?}}   # => false
-    # {{Two.abstract?}}   # => true
-    # {{Three.abstract?}} # => false
-    # {{Four.abstract?}}  # => true
+    # {{ One.abstract? }}   # => false
+    # {{ Two.abstract? }}   # => true
+    # {{ Three.abstract? }} # => false
+    # {{ Four.abstract? }}  # => true
     # ```
     def abstract? : BoolLiteral
     end
@@ -2726,9 +2726,9 @@ module Crystal::Macros
     # See also: `#union_types`.
     #
     # ```
-    # {{String.union?}}              # => false
-    # {{String?.union?}}             # => true
-    # {{Union(String, Bool).union?}} # => true
+    # {{ String.union? }}              # => false
+    # {{ String?.union? }}             # => true
+    # {{ Union(String, Bool).union? }} # => true
     # ```
     def union? : BoolLiteral
     end
@@ -2736,11 +2736,11 @@ module Crystal::Macros
     # Returns `true` if `nil` is an instance of `self`, otherwise `false`.
     #
     # ```
-    # {{String.nilable?}}                   # => false
-    # {{String?.nilable?}}                  # => true
-    # {{Union(String, Bool, Nil).nilable?}} # => true
-    # {{NoReturn.nilable?}}                 # => false
-    # {{Value.nilable?}}                    # => true
+    # {{ String.nilable? }}                   # => false
+    # {{ String?.nilable? }}                  # => true
+    # {{ Union(String, Bool, Nil).nilable? }} # => true
+    # {{ NoReturn.nilable? }}                 # => false
+    # {{ Value.nilable? }}                    # => true
     # ```
     def nilable? : BoolLiteral
     end
@@ -2754,9 +2754,9 @@ module Crystal::Macros
     #
     # struct Three; end
     #
-    # {{One.module?}}   # => true
-    # {{Two.module?}}   # => false
-    # {{Three.module?}} # => false
+    # {{ One.module? }}   # => true
+    # {{ Two.module? }}   # => false
+    # {{ Three.module? }} # => false
     # ```
     def module? : BoolLiteral
     end
@@ -2770,9 +2770,9 @@ module Crystal::Macros
     #
     # struct Three; end
     #
-    # {{One.class?}}   # => false
-    # {{Two.class?}}   # => true
-    # {{Three.class?}} # => false
+    # {{ One.class? }}   # => false
+    # {{ Two.class? }}   # => true
+    # {{ Three.class? }} # => false
     # ```
     def class? : BoolLiteral
     end
@@ -2786,9 +2786,9 @@ module Crystal::Macros
     #
     # struct Three; end
     #
-    # {{One.struct?}}   # => false
-    # {{Two.struct?}}   # => false
-    # {{Three.struct?}} # => true
+    # {{ One.struct? }}   # => false
+    # {{ Two.struct? }}   # => false
+    # {{ Three.struct? }} # => true
     # ```
     def struct? : BoolLiteral
     end
@@ -2807,9 +2807,9 @@ module Crystal::Macros
     #
     # module Bar::Baz; end
     #
-    # {{Bar::Baz.name}}                 # => Bar::Baz
-    # {{Foo.name}}                      # => Foo(T)
-    # {{Foo.name(generic_args: false)}} # => Foo
+    # {{ Bar::Baz.name }}                 # => Bar::Baz
+    # {{ Foo.name }}                      # => Foo(T)
+    # {{ Foo.name(generic_args: false) }} # => Foo
     # ```
     def name(*, generic_args : BoolLiteral = true) : MacroId
     end

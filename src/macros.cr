@@ -70,14 +70,14 @@ macro record(__name name, *properties, **kwargs)
     TXT
   %}
 
-  struct {{name.id}}
+  struct {{ name.id }}
     {% for property in properties %}
       {% if property.is_a?(Assign) %}
-        getter {{property.target.id}}
+        getter {{ property.target.id }}
       {% elsif property.is_a?(TypeDeclaration) %}
-        getter {{property}}
+        getter {{ property }}
       {% else %}
-        getter :{{property.id}}
+        getter :{{ property.id }}
       {% end %}
     {% end %}
 
@@ -88,7 +88,7 @@ macro record(__name name, *properties, **kwargs)
                    }})
     end
 
-    {{yield}}
+    {{ yield }}
 
     def copy_with({{
                     properties.map do |property|
@@ -148,16 +148,16 @@ macro pp!(*exps)
     {% exp = exps.first %}
     %prefix = "#{{{ exp.stringify }}} # => "
     ::print %prefix
-    ::pp({{exp}})
+    ::pp({{ exp }})
   {% else %}
-    %names = { {{exps.map(&.stringify).splat}} }
+    %names = { {{ exps.map(&.stringify).splat }} }
     %max_size = %names.max_of &.size
     {
       {% for exp, i in exps %}
         begin
-          %prefix = "#{%names[{{i}}].ljust(%max_size)} # => "
+          %prefix = "#{%names[{{ i }}].ljust(%max_size)} # => "
           ::print %prefix
-          ::pp({{exp}})
+          ::pp({{ exp }})
         end,
       {% end %}
     }
@@ -182,16 +182,16 @@ macro p!(*exps)
     {% exp = exps.first %}
     %prefix = "#{{{ exp.stringify }}} # => "
     ::print %prefix
-    ::p({{exp}})
+    ::p({{ exp }})
   {% else %}
-    %names = { {{exps.map(&.stringify).splat}} }
+    %names = { {{ exps.map(&.stringify).splat }} }
     %max_size = %names.max_of &.size
     {
       {% for exp, i in exps %}
         begin
-          %prefix = "#{%names[{{i}}].ljust(%max_size)} # => "
+          %prefix = "#{%names[{{ i }}].ljust(%max_size)} # => "
           ::print %prefix
-          ::p({{exp}})
+          ::p({{ exp }})
         end,
       {% end %}
     }

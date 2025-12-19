@@ -42,11 +42,11 @@ describe HTTP::WebSocketHandler do
   end
 
   {% for connection in ["Upgrade", "keep-alive, Upgrade"] %}
-    it "gives upgrade response for websocket upgrade request with '{{connection.id}}' request" do
+    it "gives upgrade response for websocket upgrade request with '{{ connection.id }}' request" do
       io = IO::Memory.new
       headers = HTTP::Headers{
         "Upgrade" =>           "websocket",
-        "Connection" =>        {{connection}},
+        "Connection" =>        {{ connection }},
         "Sec-WebSocket-Key" => "dGhlIHNhbXBsZSBub25jZQ==",
         "Sec-WebSocket-Version" => "13",
       }

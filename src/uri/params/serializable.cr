@@ -99,11 +99,11 @@ struct URI::Params
         {% verbatim do %}
           {% begin %}
             {% for ivar, idx in @type.instance_vars %}
-              %name{idx} = name.nil? ? {{ivar.name.stringify}} : "#{name}[#{{{ivar.name.stringify}}}]"
-              %value{idx} = {{(ann = ivar.annotation(URI::Params::Field)) && (converter = ann["converter"]) ? converter : ivar.type}}.from_www_form params, %name{idx}
+              %name{idx} = name.nil? ? {{ ivar.name.stringify }} : "#{name}[#{{{ ivar.name.stringify }}}]"
+              %value{idx} = {{ (ann = ivar.annotation(URI::Params::Field)) && (converter = ann["converter"]) ? converter : ivar.type }}.from_www_form params, %name{idx}
 
               unless %value{idx}.nil?
-                @{{ivar.name.id}} = %value{idx}
+                @{{ ivar.name.id }} = %value{idx}
               else
                 {% unless ivar.type.resolve.nilable? || ivar.has_default_value? %}
                   raise URI::SerializableError.new "Missing required property: '#{%name{idx}}'."
@@ -118,7 +118,7 @@ struct URI::Params
     def to_www_form(*, space_to_plus : Bool = true) : String
       URI::Params.build(space_to_plus: space_to_plus) do |form|
         {% for ivar in @type.instance_vars %}
-          @{{ivar.name.id}}.to_www_form form, {{ivar.name.stringify}}
+          @{{ ivar.name.id }}.to_www_form form, {{ ivar.name.stringify }}
         {% end %}
       end
     end
@@ -126,7 +126,7 @@ struct URI::Params
     # :nodoc:
     def to_www_form(builder : URI::Params::Builder, name : String)
       {% for ivar in @type.instance_vars %}
-        @{{ivar.name.id}}.to_www_form builder, "#{name}[#{{{ivar.name.stringify}}}]"
+        @{{ ivar.name.id }}.to_www_form builder, "#{name}[#{{{ ivar.name.stringify }}}]"
       {% end %}
     end
   end

@@ -550,16 +550,16 @@ class Object
       {% eq_operators = %w(<= >= == != []= ===) %}
       {% for method in methods %}
         {% if method.id.ends_with?('=') && !eq_operators.includes?(method.id.stringify) %}
-          def {{method.id}}(arg)
-            {{object.id}}.{{method.id}} arg
+          def {{ method.id }}(arg)
+            {{ object.id }}.{{ method.id }} arg
           end
         {% else %}
-          def {{method.id}}(*args, **options)
-            {{object.id}}.{{method.id}}(*args, **options)
+          def {{ method.id }}(*args, **options)
+            {{ object.id }}.{{ method.id }}(*args, **options)
           end
 
-          def {{method.id}}(*args, **options)
-            {{object.id}}.{{method.id}}(*args, **options) do |*yield_args|
+          def {{ method.id }}(*args, **options)
+            {{ object.id }}.{{ method.id }}(*args, **options) do |*yield_args|
               yield *yield_args
             end
           end
@@ -568,17 +568,17 @@ class Object
     {% else %}
       {% for method in methods %}
         {% if method.id.ends_with?('=') && method.id != "[]=" %}
-          def {{method.id}}(arg)
-            {{object.id}}.{{method.id}} arg
+          def {{ method.id }}(arg)
+            {{ object.id }}.{{ method.id }} arg
           end
         {% else %}
-          def {{method.id}}(*args, **options)
-            {{object.id}}.{{method.id}}(*args, **options)
+          def {{ method.id }}(*args, **options)
+            {{ object.id }}.{{ method.id }}(*args, **options)
           end
 
           {% if method.id != "[]=" %}
-            def {{method.id}}(*args, **options)
-              {{object.id}}.{{method.id}}(*args, **options) do |*yield_args|
+            def {{ method.id }}(*args, **options)
+              {{ object.id }}.{{ method.id }}(*args, **options) do |*yield_args|
                 yield *yield_args
               end
             end
@@ -602,7 +602,7 @@ class Object
   macro def_hash(*fields)
     def hash(hasher)
       {% for field in fields %}
-        hasher = {{field.id}}.hash(hasher)
+        hasher = {{ field.id }}.hash(hasher)
       {% end %}
       hasher
     end
@@ -630,7 +630,7 @@ class Object
         return true if same?(other)
       {% end %}
       {% for field in fields %}
-        return false unless {{field.id}} == other.{{field.id}}
+        return false unless {{ field.id }} == other.{{ field.id }}
       {% end %}
       true
     end
@@ -651,8 +651,8 @@ class Object
   # end
   # ```
   macro def_equals_and_hash(*fields)
-    def_equals {{fields.splat}}
-    def_hash {{fields.splat}}
+    def_equals {{ fields.splat }}
+    def_hash {{ fields.splat }}
   end
 
   # Forwards missing methods to *delegate*.
@@ -671,7 +671,7 @@ class Object
   # ```
   macro forward_missing_to(delegate)
     macro method_missing(call)
-      {{delegate}}.\{{call}}
+      {{ delegate }}.\{{call}}
     end
   end
 
@@ -682,14 +682,14 @@ class Object
     def clone
       \{% if @type < ::Reference && !@type.instance_vars.map(&.type).all? { |t| t == ::Bool || t == ::Char || t == ::Symbol || t == ::String || t < ::Number::Primitive } %}
         exec_recursive_clone do |hash|
-          clone = \{{@type}}.allocate
+          clone = \{{ @type }}.allocate
           hash[object_id] = clone.object_id
           clone.initialize_copy(self)
           ::GC.add_finalizer(clone) if clone.responds_to?(:finalize)
           clone
         end
       \{% else %}
-        clone = \{{@type}}.allocate
+        clone = \{{ @type }}.allocate
         clone.initialize_copy(self)
         ::GC.add_finalizer(clone) if clone.responds_to?(:finalize)
         clone
@@ -698,7 +698,7 @@ class Object
 
     protected def initialize_copy(other)
       \{% for ivar in @type.instance_vars %}
-        @\{{ivar.id}} = other.@\{{ivar.id}}.clone
+        @\{{ ivar.id }} = other.@\{{ ivar.id }}.clone
       \{% end %}
     end
   end
@@ -741,15 +741,15 @@ class Object
 
     {% unless emulated_tls %}
       @[ThreadLocal]
-      @@{{name}} : {{decl.type}} | Nil
+      @@{{ name }} : {{ decl.type }} | Nil
     {% end %}
 
-    def self.{{name}} : {{decl.type}}
+    def self.{{ name }} : {{ decl.type }}
       {% if emulated_tls %}
-        Thread.current.{{tls_name}} ||= {{yield}}
+        Thread.current.{{ tls_name }} ||= {{ yield }}
       {% else %}
-        if (value = @@{{name}}).nil?
-          Thread.current.{{tls_name}} = @@{{name}} = {{yield}}
+        if (value = @@{{ name }}).nil?
+          Thread.current.{{ tls_name }} = @@{{ name }} = {{ yield }}
         else
           value
         end
@@ -758,7 +758,7 @@ class Object
 
     class ::Thread
       # :nodoc:
-      property {{tls_name}} : {{decl.type}} | Nil
+      property {{ tls_name }} : {{ decl.type }} | Nil
     end
   end
 end
