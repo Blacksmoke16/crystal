@@ -98,6 +98,24 @@ class XML::Reader
     value ? String.new(value) : ""
   end
 
+  # Returns the local name of the node (without namespace prefix).
+  def local_name : String
+    value = LibXML.xmlTextReaderConstLocalName(@reader)
+    value ? String.new(value) : ""
+  end
+
+  # Returns the namespace prefix of the node, or an empty string if none.
+  def prefix : String
+    value = LibXML.xmlTextReaderConstPrefix(@reader)
+    value ? String.new(value) : ""
+  end
+
+  # Returns the namespace URI of the node, or an empty string if none.
+  def namespace_uri : String
+    value = LibXML.xmlTextReaderConstNamespaceUri(@reader)
+    value ? String.new(value) : ""
+  end
+
   # Checks if the node is an empty element.
   def empty_element? : Bool
     LibXML.xmlTextReaderIsEmptyElement(@reader) == 1

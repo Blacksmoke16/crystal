@@ -155,6 +155,10 @@ lib LibXML
   fun xmlTextReaderDepth(reader : XMLTextReader) : Int
   fun xmlTextReaderReadInnerXml(reader : XMLTextReader) : UInt8*
   fun xmlTextReaderReadOuterXml(reader : XMLTextReader) : UInt8*
+  fun xmlTextReaderConstNamespaceUri(reader : XMLTextReader) : UInt8*
+  fun xmlTextReaderConstPrefix(reader : XMLTextReader) : UInt8*
+  fun xmlTextReaderConstLocalName(reader : XMLTextReader) : UInt8*
+  fun xmlTextReaderLookupNamespace(reader : XMLTextReader, prefix : UInt8*) : UInt8*
   fun xmlTextReaderExpand(reader : XMLTextReader) : Node*
   fun xmlTextReaderCurrentNode(reader : XMLTextReader) : Node*
   fun xmlTextReaderCurrentDoc(reader : XMLTextReader) : Doc*
