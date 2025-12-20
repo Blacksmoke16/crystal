@@ -142,16 +142,7 @@ module Crystal
         next if index >= args.size # Will be handled by default values
 
         arg = args[index]
-        validate_macro_method_arg_type(arg, restriction, param.name, call_node)
-      end
-
-      # Validate named argument types
-      if named_args
-        named_args.each do |name, arg|
-          param = macro_method.args.find { |p| p.external_name == name }
-          next unless param && param.restriction
-          validate_macro_method_arg_type(arg, param.restriction, param.name, call_node)
-        end
+        validate_macro_method_type(arg, restriction, call_node, param.name)
       end
 
       # Create a new interpreter scope for the macro method body
@@ -165,13 +156,15 @@ module Crystal
         end
       end
 
-      # Handle named arguments
+      # Handle named arguments (validate and bind in one pass)
       if named_args
         named_args.each do |name, arg|
           param = macro_method.args.find { |p| p.external_name == name }
-          if param
-            body_vars[param.name] = arg
+          next unless param
+          if restriction = param.restriction
+            validate_macro_method_type(arg, restriction, call_node, param.name)
           end
+          body_vars[param.name] = arg
         end
       end
 
@@ -193,34 +186,26 @@ module Crystal
 
       # Validate return type if specified
       if return_type = macro_method.return_type
-        validate_macro_method_return_type(result, return_type, call_node)
+        validate_macro_method_type(result, return_type, call_node)
       end
 
       result
     end
 
-    # Validates that an argument matches the expected macro type
-    private def validate_macro_method_arg_type(arg, restriction, param_name, call_node)
-      expected_types = macro_type_names_from_restriction(restriction)
-      return if expected_types.empty? # No restriction or unknown restriction
-
-      actual_type = arg.class_desc
-      return if expected_types.any? { |expected| macro_type_matches?(actual_type, expected) }
-
-      expected_str = expected_types.size == 1 ? expected_types.first : expected_types.join(" | ")
-      call_node.raise "expected #{expected_str} for parameter '#{param_name}', got #{actual_type}"
-    end
-
-    # Validates that the return value matches the expected macro type
-    private def validate_macro_method_return_type(result, restriction, call_node)
+    # Validates that a value matches the expected macro type restriction
+    private def validate_macro_method_type(value, restriction, call_node, param_name : String? = nil)
       expected_types = macro_type_names_from_restriction(restriction)
       return if expected_types.empty?
 
-      actual_type = result.class_desc
+      actual_type = value.class_desc
       return if expected_types.any? { |expected| macro_type_matches?(actual_type, expected) }
 
       expected_str = expected_types.size == 1 ? expected_types.first : expected_types.join(" | ")
-      call_node.raise "macro method expected to return #{expected_str}, got #{actual_type}"
+      if param_name
+        call_node.raise "expected #{expected_str} for parameter '#{param_name}', got #{actual_type}"
+      else
+        call_node.raise "macro method expected to return #{expected_str}, got #{actual_type}"
+      end
     end
 
     # Extracts type names from a restriction AST node

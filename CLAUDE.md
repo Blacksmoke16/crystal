@@ -40,6 +40,7 @@ end
 
 3. `src/compiler/crystal/semantic/semantic_visitor.cr`
    - Added check at line ~311-316 to error when macro method called outside `{{ }}`
+   - Added `check_macro_method_outside_expansion` helper for proper error messages
 
 4. `src/compiler/crystal/semantic/cleanup_transformer.cr`
    - Added `transform(node : Macro)` override at line ~135
@@ -52,14 +53,28 @@ end
    - `execute_macro_method` at line ~137 - validates types, creates sub-interpreter, executes body
    - `execute_type_macro_method?` at line ~2295 (in TypeNode#interpret) - handles type-scoped calls
 
-6. `spec/compiler/codegen/macro_spec.cr`
-   - Tests at line ~1893-2055
+6. `src/compiler/crystal/semantic/restrictions.cr`
+   - Modified `Macro#overrides?` to allow macro/macro def coexistence
+
+7. `src/compiler/crystal/syntax/to_s.cr`
+   - Updated `visit(node : Macro)` for macro def output
+
+8. `src/compiler/crystal/tools/formatter.cr`
+   - Updated `visit(node : Macro)` for macro def formatting
+
+9. `spec/compiler/codegen/macro_spec.cr`
+   - Tests at line ~1893-2120
+
+10. `spec/compiler/parser/to_s_spec.cr`
+    - Tests for macro def to_s
+
+11. `spec/compiler/formatter/formatter_spec.cr`
+    - Tests for macro def formatting
 
 ### Type Validation
 
 Parameter and return type validation uses these methods in `methods.cr`:
-- `validate_macro_method_arg_type` - checks args match restrictions
-- `validate_macro_method_return_type` - checks return value
+- `validate_macro_method_type` - validates args and return values against restrictions
 - `macro_type_names_from_restriction` - extracts type names from AST
 - `macro_type_matches?` - compares actual vs expected types
 
@@ -93,6 +108,60 @@ Inside macro {{ ... }}:
 3. **Default values**: Supported on parameters
 4. **Untyped parameters**: Accept any ASTNode
 5. **Blocks**: Not supported (can add later)
+6. **Visibility**: `private macro def` supported - errors when called with explicit receiver
+7. **Coexistence**: `macro foo` and `macro def foo` can coexist in the same type
+
+### Visibility (private macro def)
+
+Private macro methods error when called with an explicit receiver:
+
+```crystal
+class Foo
+  private macro def helper(x : StringLiteral) : StringLiteral
+    x.upcase
+  end
+
+  macro generate
+    {{ helper("hello") }}      # OK - no receiver
+  end
+end
+
+{{ Foo.helper("hello") }}      # Error: private macro 'helper' called for Foo
+```
+
+Implementation in `src/compiler/crystal/macros/methods.cr`:
+- `execute_type_macro_method?` checks `macro_method.visibility.private?` before execution
+
+### Coexistence with Regular Macros
+
+A type can have both `macro foo` and `macro def foo`. They're called in different contexts:
+
+```crystal
+class Foo
+  macro foo
+    "from regular macro"
+  end
+
+  macro def foo : StringLiteral
+    "from macro method"
+  end
+end
+
+Foo.foo              # Calls regular macro (outside {{ }})
+{{ Foo.foo }}        # Calls macro method (inside {{ }})
+```
+
+Implementation:
+- `src/compiler/crystal/semantic/restrictions.cr`: `Macro#overrides?` returns false when comparing macro method with regular macro
+- `src/compiler/crystal/types.cr`: `lookup_macro` skips macro methods
+- `src/compiler/crystal/macros/methods.cr`: `find_macro_method_in_type` searches for macro methods only
+
+### to_s and Formatter Support
+
+Both `to_s.cr` and `formatter.cr` handle macro methods:
+- Write `macro def` instead of `macro`
+- Handle return type (`: Type`)
+- Format body as regular Crystal expressions (not macro body syntax)
 
 ### Testing
 
