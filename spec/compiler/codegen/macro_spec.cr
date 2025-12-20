@@ -1969,7 +1969,7 @@ describe "Code gen: macro" do
     end
 
     it "validates return types" do
-      assert_error(<<-CRYSTAL, "macro method expected to return StringLiteral, got NumberLiteral")
+      assert_error(<<-CRYSTAL, "expected macro method to return StringLiteral, got NumberLiteral")
         macro def bad_return(x : NumberLiteral) : StringLiteral
           x
         end
@@ -2310,13 +2310,27 @@ describe "Code gen: macro" do
     end
 
     it "raises on type mismatch for return value" do
-      assert_error(<<-CRYSTAL, "macro method expected to return NumberLiteral, got StringLiteral")
+      assert_error(<<-CRYSTAL, "expected macro method to return NumberLiteral, got StringLiteral")
         macro def returns_wrong : NumberLiteral
           "oops"
         end
 
         macro test
           {{ returns_wrong }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "raises on wrong number of arguments" do
+      assert_error(<<-CRYSTAL, "wrong number of arguments for macro method 'add' (given 1, expected 2)")
+        macro def add(a : NumberLiteral, b : NumberLiteral) : NumberLiteral
+          a + b
+        end
+
+        macro test
+          {{ add(1) }}
         end
 
         test

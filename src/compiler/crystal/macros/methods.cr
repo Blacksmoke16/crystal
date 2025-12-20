@@ -99,7 +99,16 @@ module Crystal
       # Look up macro method in scope chain: current scope -> program (top-level)
       # Use original node.args and node.named_args for matching (they have .name property)
       macro_method = lookup_macro_method(node.name, node.args, node.named_args)
-      return nil unless macro_method
+
+      unless macro_method
+        # Check if a macro method with this name exists but with different arguments
+        all_methods = lookup_macro_methods(node.name)
+        unless all_methods.empty?
+          node.raise wrong_number_of_arguments_message(node.name, node.args.size, all_methods)
+        end
+
+        return nil
+      end
 
       # Build evaluated named args hash for execution
       evaluated_named_args = node.named_args.try &.to_h { |named_arg| {named_arg.name, accept(named_arg.value)} }
@@ -107,31 +116,39 @@ module Crystal
       execute_macro_method(macro_method, node, evaluated_args, evaluated_named_args, node.block)
     end
 
-    # Looks up a macro method by name in the scope chain
+    # Looks up a macro method by name in the scope chain that matches the given arguments
     private def lookup_macro_method(name, args, named_args)
-      # First check current scope
-      if macro_method = find_macro_method_in_type(@scope, name, args, named_args)
-        return macro_method
-      end
-
-      # Check program scope (top-level macro methods)
-      if macro_method = find_macro_method_in_type(@program, name, args, named_args)
-        return macro_method
-      end
-
-      nil
+      lookup_macro_methods(name).find { |m| m.matches?(args, named_args) }
     end
 
-    # Finds a macro method in a specific type
-    private def find_macro_method_in_type(type, name, args, named_args)
-      # Look directly in the macros hash, filtering for macro methods only.
-      # This allows macro methods to coexist with regular macros of the same name.
+    # Looks up all macro methods with a given name in the scope chain
+    private def lookup_macro_methods(name) : Array(Macro)
+      result = find_macro_methods_in_type(@scope, name)
+      result.concat(find_macro_methods_in_type(@program, name))
+      result
+    end
+
+    # Finds all macro methods with a given name in a type
+    private def find_macro_methods_in_type(type, name) : Array(Macro)
       macros_scope = type.metaclass? ? type : type.metaclass
       if macros_scope.is_a?(ModuleType)
         if macros = macros_scope.macros.try &.[name]?
-          macros.find { |m| m.macro_method? && m.matches?(args, named_args) }
+          return macros.select(&.macro_method?)
         end
       end
+      [] of Macro
+    end
+
+    # Generates error message for wrong number of arguments
+    private def wrong_number_of_arguments_message(name, given, methods : Array(Macro)) : String
+      expected = methods.map { |m|
+        required = m.args.count { |arg| !arg.default_value && arg.name != m.splat_index.try { |i| m.args[i]?.try(&.name) } }
+        total = m.args.size
+        has_splat = m.splat_index
+        has_splat ? "#{required}+" : (required == total ? required.to_s : "#{required}..#{total}")
+      }.uniq.join(", ")
+
+      "wrong number of arguments for macro method '#{name}' (given #{given}, expected #{expected})"
     end
 
     # Executes a macro method with the given arguments
@@ -158,7 +175,7 @@ module Crystal
 
         if arg
           if restriction = param.restriction
-            validate_macro_method_type(arg, restriction, call_node, param.name)
+            validate_macro_method_type(arg, restriction, call_node, macro_method, param.name)
           end
           body_vars[param.name] = arg
         elsif default_value = param.default_value
@@ -186,7 +203,7 @@ module Crystal
           param = macro_method.args.find { |p| p.external_name == name }
           next unless param
           if restriction = param.restriction
-            validate_macro_method_type(arg, restriction, call_node, param.name)
+            validate_macro_method_type(arg, restriction, call_node, macro_method, param.name)
           end
           body_vars[param.name] = arg
         end
@@ -228,28 +245,28 @@ module Crystal
 
       # Validate return type if specified
       if return_type = macro_method.return_type
-        validate_macro_method_type(result, return_type, call_node)
+        validate_macro_method_type(result, return_type, call_node, macro_method)
       end
 
       result
     end
 
     # Validates that a value matches the expected macro type restriction
-    private def validate_macro_method_type(value : ASTNode, restriction : ASTNode, call_node, param_name : String? = nil)
+    private def validate_macro_method_type(value : ASTNode, restriction : ASTNode, call_node, macro_method : Macro, param_name : String? = nil)
       macro_type = @program.lookup_macro_type(restriction)
       return if value.macro_is_a?(macro_type)
 
       if param_name
         call_node.raise "expected #{restriction} for parameter '#{param_name}', got #{value.class_desc}"
       else
-        call_node.raise "macro method expected to return #{restriction}, got #{value.class_desc}"
+        macro_method.raise "expected macro method to return #{restriction}, got #{value.class_desc}"
       end
     end
 
     # Executes a macro method defined on a type (called when receiver is a TypeNode)
     def execute_type_macro_method?(type : Type, method : String, args : Array(ASTNode), named_args : Hash(String, ASTNode)?, block : Block?, name_loc : Location?)
       # Look up macro method on the type
-      macro_method = find_macro_method_in_type(type, method, args, nil)
+      macro_method = find_macro_methods_in_type(type, method).find { |m| m.matches?(args, nil) }
       return nil unless macro_method
 
       # Build a synthetic call node for error reporting
