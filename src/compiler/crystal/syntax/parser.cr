@@ -5322,10 +5322,20 @@ module Crystal
         case @token.type
         when .op_period?
           next_token_skip_space_or_newline
-          check_ident :class
+          # Handle both `Foo.class` and `Foo.class?` (nilable metaclass)
+          nilable = false
+          if @token.keyword?(:class)
+            # Foo.class
+          elsif @token.type.ident? && @token.value == "class?"
+            # Foo.class? - lexer tokenizes this as single identifier
+            nilable = true
+          else
+            check_ident :class # raises expected error
+          end
           end_location = token_end_location
           next_token_skip_space
           type = Metaclass.new(type).at(type).at_end(end_location)
+          type = make_nilable_type(type).at_end(end_location) if nilable
         when .op_question?
           next_token_skip_space
           type = make_nilable_type(type).at_end(end_location)
