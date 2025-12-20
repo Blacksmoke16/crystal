@@ -73,12 +73,11 @@ end
 
 ### Type Validation
 
-Parameter and return type validation uses these methods in `methods.cr`:
-- `validate_macro_method_type` - validates args and return values against restrictions
-- `macro_type_names_from_restriction` - extracts type names from AST
-- `macro_type_matches?` - compares actual vs expected types
+Parameter and return type validation uses `validate_macro_method_type` in `methods.cr`, which leverages:
+- `@program.lookup_macro_type(restriction)` - converts restriction AST to `MacroType`
+- `value.macro_is_a?(macro_type)` - checks if value matches the type (with inheritance)
 
-Supported types: `ArrayLiteral`, `StringLiteral`, `NumberLiteral`, `SymbolLiteral`, `BoolLiteral`, `HashLiteral`, `NamedTupleLiteral`, `TupleLiteral`, `RangeLiteral`, `RegexLiteral`, `MacroId`, `TypeNode`, `NilLiteral`, `ProcLiteral`, `ASTNode` (matches any)
+Supported types: All AST node types (`ArrayLiteral`, `StringLiteral`, `NumberLiteral`, etc.), `ASTNode` (matches any)
 
 Union types supported: `x : StringLiteral | SymbolLiteral`
 

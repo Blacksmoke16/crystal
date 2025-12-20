@@ -193,40 +193,15 @@ module Crystal
     end
 
     # Validates that a value matches the expected macro type restriction
-    private def validate_macro_method_type(value, restriction, call_node, param_name : String? = nil)
-      expected_types = macro_type_names_from_restriction(restriction)
-      return if expected_types.empty?
+    private def validate_macro_method_type(value : ASTNode, restriction : ASTNode, call_node, param_name : String? = nil)
+      macro_type = @program.lookup_macro_type(restriction)
+      return if value.macro_is_a?(macro_type)
 
-      actual_type = value.class_desc
-      return if expected_types.any? { |expected| macro_type_matches?(actual_type, expected) }
-
-      expected_str = expected_types.size == 1 ? expected_types.first : expected_types.join(" | ")
       if param_name
-        call_node.raise "expected #{expected_str} for parameter '#{param_name}', got #{actual_type}"
+        call_node.raise "expected #{restriction} for parameter '#{param_name}', got #{value.class_desc}"
       else
-        call_node.raise "macro method expected to return #{expected_str}, got #{actual_type}"
+        call_node.raise "macro method expected to return #{restriction}, got #{value.class_desc}"
       end
-    end
-
-    # Extracts type names from a restriction AST node
-    private def macro_type_names_from_restriction(restriction) : Array(String)
-      case restriction
-      when Path
-        [restriction.names.join("::")]
-      when Union
-        restriction.types.flat_map { |t| macro_type_names_from_restriction(t) }
-      when Generic
-        name = restriction.name
-        name.is_a?(Path) ? [name.names.join("::")] : [] of String
-      else
-        [] of String
-      end
-    end
-
-    # Checks if an actual macro type matches an expected type name
-    private def macro_type_matches?(actual : String, expected : String) : Bool
-      return true if expected == "ASTNode" # ASTNode matches anything
-      actual == expected
     end
 
     # Executes a macro method defined on a type (called when receiver is a TypeNode)
