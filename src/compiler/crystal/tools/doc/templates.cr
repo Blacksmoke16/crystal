@@ -49,7 +49,7 @@ module Crystal::Doc
     ECR.def_to_s "#{__DIR__}/html/_methods_inherited.html"
   end
 
-  record MacrosInheritedTemplate, type : Type, ancestor : Type, macros : Array(Macro) do
+  record MacrosInheritedTemplate, type : Type, ancestor : Type, macros : Array(Macro), label : String = "Macro" do
     ECR.def_to_s "#{__DIR__}/html/_macros_inherited.html"
   end
 

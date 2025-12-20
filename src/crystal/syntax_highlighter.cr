@@ -191,6 +191,7 @@ abstract class Crystal::SyntaxHighlighter
         end
       end
     when .op_lparen?, .op_rparen?, .op_lsquare?, .op_rsquare?, .op_lcurly?, .op_rcurly?, .op_at_lsquare?, # ( ) { } [ ] @[
+         .op_lcurly_lcurly?,                                                                              # {{
          .op_comma?, .op_period?, .op_period_period?, .op_period_period_period?,                          # , . .. ...
          .op_colon?, .op_semicolon?, .op_question?, .op_dollar_question?, .op_dollar_tilde?               # : ; ? $? $~
       # Operators that should not be colorized

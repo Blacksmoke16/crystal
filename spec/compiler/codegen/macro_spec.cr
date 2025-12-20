@@ -2119,5 +2119,54 @@ describe "Code gen: macro" do
         Foo.foo
         CRYSTAL
     end
+
+    it "works in {% %} control statement" do
+      run(<<-CRYSTAL).to_i.should eq(12)
+        macro def double(n : NumberLiteral) : NumberLiteral
+          n * 2
+        end
+
+        {% begin %}
+          {% result = double(2) + double(4) %}
+          {{ result }}
+        {% end %}
+        CRYSTAL
+    end
+
+    it "works in {% if %} control expression" do
+      run(<<-CRYSTAL).to_string.should eq("even")
+        macro def is_even(n : NumberLiteral) : BoolLiteral
+          n % 2 == 0
+        end
+
+        macro test
+          {% if is_even(4) %}
+            "even"
+          {% else %}
+            "odd"
+          {% end %}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "works in {% for %} control expression" do
+      run(<<-CRYSTAL).to_i.should eq(3)
+        macro def filter_even(arr : ArrayLiteral) : ArrayLiteral
+          arr.select { |x| x % 2 == 0 }
+        end
+
+        class Foo
+          {% for i in filter_even([1, 2, 3, 4, 5, 6]) %}
+            def self.method_{{i}}
+              {{i}}
+            end
+          {% end %}
+        end
+
+        Foo.method_2 == 2 && Foo.method_4 == 4 && Foo.method_6 == 6 ? 3 : 0
+        CRYSTAL
+    end
   end
 end
