@@ -63,13 +63,25 @@ end
    - Updated `visit(node : Macro)` for macro def formatting
 
 9. `spec/compiler/codegen/macro_spec.cr`
-   - Tests at line ~1893-2120
+   - Tests at line ~1893-2330
 
 10. `spec/compiler/parser/to_s_spec.cr`
     - Tests for macro def to_s
 
 11. `spec/compiler/formatter/formatter_spec.cr`
     - Tests for macro def formatting
+
+12. `src/compiler/crystal/tools/doc/type.cr`
+    - Added `macro_methods` method to separate macro methods from regular macros
+
+13. `src/compiler/crystal/tools/doc/templates.cr`
+    - Added `label` parameter to `MacrosInheritedTemplate`
+
+14. `src/compiler/crystal/tools/doc/html/type.html`
+    - Added "Macro Method Summary" and "Macro Method Detail" sections
+
+15. `src/crystal/syntax_highlighter.cr`
+    - Fixed `{{` highlighting inconsistency (added `op_lcurly_lcurly?` to non-colorized operators)
 
 ### Type Validation
 
@@ -106,9 +118,35 @@ Inside macro {{ ... }}:
 2. **Recursion**: Supported - macro methods can call other macro methods
 3. **Default values**: Supported on parameters
 4. **Untyped parameters**: Accept any ASTNode
-5. **Blocks**: Not supported (can add later)
-6. **Visibility**: `private macro def` supported - errors when called with explicit receiver
-7. **Coexistence**: `macro foo` and `macro def foo` can coexist in the same type
+5. **Splat parameters**: `*args` gathers positional arguments into a `TupleLiteral`
+6. **Double splat parameters**: `**kwargs` gathers named arguments into a `NamedTupleLiteral`
+7. **Blocks**: Supported via `&block` parameter; use `yield` or access `block.body`
+8. **Visibility**: `private macro def` supported - errors when called with explicit receiver
+9. **Coexistence**: `macro foo` and `macro def foo` can coexist in the same type
+
+### Limitations
+
+- **Splat type restrictions**: Type restrictions on `*args` and `**kwargs` are not validated. In Crystal, these restrictions validate each element within the collection, not the collection itself. We skip this validation since we're doing lightweight type checking.
+
+### Block Support
+
+Macro methods support blocks via `&block` parameter:
+
+```crystal
+macro def with_wrapper(&block)
+  "before " + {{ yield }} + " after"
+end
+
+macro def inspect_block(&block)
+  {{ block.body }}
+end
+
+# Usage
+{{ with_wrapper { "content" } }}      # => "before content after"
+{{ inspect_block { 1 + 2 } }}         # => 1 + 2 (the AST)
+```
+
+Implementation: `execute_macro_method` binds block to `body_vars` and passes it to sub-interpreter for `yield` support.
 
 ### Visibility (private macro def)
 
@@ -161,6 +199,29 @@ Both `to_s.cr` and `formatter.cr` handle macro methods:
 - Write `macro def` instead of `macro`
 - Handle return type (`: Type`)
 - Format body as regular Crystal expressions (not macro body syntax)
+
+### Control Expressions
+
+Macro methods work in `{% %}` control expressions as well as `{{ }}` output expressions:
+
+```crystal
+macro def double(x : NumberLiteral) : NumberLiteral
+  x * 2
+end
+
+{% for i in [1, 2, 3] %}
+  {% pp double(i) %}  # Works in control context
+{% end %}
+
+{{ double(5) }}       # Works in output context
+```
+
+### API Documentation
+
+Generated API docs display macro methods in their own section ("Macro Method Summary" / "Macro Method Detail"), separate from regular macros. Implementation in:
+- `src/compiler/crystal/tools/doc/type.cr` - `macro_methods` method
+- `src/compiler/crystal/tools/doc/templates.cr` - `MacrosInheritedTemplate` with `label` parameter
+- `src/compiler/crystal/tools/doc/html/type.html` - template for rendering sections
 
 ### Testing
 

@@ -2168,5 +2168,159 @@ describe "Code gen: macro" do
         Foo.method_2 == 2 && Foo.method_4 == 4 && Foo.method_6 == 6 ? 3 : 0
         CRYSTAL
     end
+
+    it "supports splat parameters" do
+      run(<<-CRYSTAL).to_i.should eq(6)
+        macro def sum(*args) : NumberLiteral
+          args.reduce(0) { |acc, x| acc + x }
+        end
+
+        macro test
+          {{ sum(1, 2, 3) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports double splat parameters" do
+      run(<<-CRYSTAL).to_i.should eq(3)
+        macro def count_kwargs(**kwargs) : NumberLiteral
+          kwargs.size
+        end
+
+        macro test
+          {{ count_kwargs(a: 1, b: 2, c: 3) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports blocks with yield" do
+      run(<<-CRYSTAL).to_i.should eq(42)
+        macro def with_block(&block)
+          yield
+        end
+
+        macro test
+          {{ with_block { 42 } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports blocks with multiple yields" do
+      run(<<-CRYSTAL).to_i.should eq(30)
+        macro def repeat_block(&block)
+          yield + yield + yield
+        end
+
+        macro test
+          {{ repeat_block { 10 } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports named block parameter access" do
+      run(<<-CRYSTAL).to_i.should eq(10)
+        macro def inspect_block(&block)
+          block.body
+        end
+
+        macro test
+          {{ inspect_block { 10 } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports yield with value and block variable" do
+      run(<<-CRYSTAL).to_i.should eq(10)
+        macro def apply_to_5(&block)
+          yield 5
+        end
+
+        macro test
+          {{ apply_to_5 { |n| n &+ 5 } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports yield with multiple values and block variables" do
+      run(<<-CRYSTAL).to_i.should eq(11)
+        macro def apply_to_pair(&block)
+          yield 5, 6
+        end
+
+        macro test
+          {{ apply_to_pair { |a, b| a &+ b } }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports recursive macro methods" do
+      run(<<-CRYSTAL).to_i.should eq(120)
+        macro def factorial(n : NumberLiteral) : NumberLiteral
+          n <= 1 ? 1 : n * factorial(n - 1)
+        end
+
+        macro test
+          {{ factorial(5) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "supports conditional return with ternary" do
+      run(<<-CRYSTAL).to_i.should eq(10)
+        macro def clamp_to_10(x : NumberLiteral) : NumberLiteral
+          x > 10 ? 10 : x
+        end
+
+        macro test
+          {{ clamp_to_10(15) }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "raises on type mismatch for parameter" do
+      assert_error(<<-CRYSTAL, "expected NumberLiteral for parameter 'x', got StringLiteral")
+        macro def expects_number(x : NumberLiteral) : NumberLiteral
+          x
+        end
+
+        macro test
+          {{ expects_number("hello") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "raises on type mismatch for return value" do
+      assert_error(<<-CRYSTAL, "macro method expected to return NumberLiteral, got StringLiteral")
+        macro def returns_wrong : NumberLiteral
+          "oops"
+        end
+
+        macro test
+          {{ returns_wrong }}
+        end
+
+        test
+        CRYSTAL
+    end
   end
 end

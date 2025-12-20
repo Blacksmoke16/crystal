@@ -776,6 +776,10 @@ module Crystal
         end
         node
       end
+
+      def transform(node : Var)
+        @vars[node.name]? || node
+      end
     end
   end
 end

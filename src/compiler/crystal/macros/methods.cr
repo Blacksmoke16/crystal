@@ -104,7 +104,7 @@ module Crystal
       # Build evaluated named args hash for execution
       evaluated_named_args = node.named_args.try &.to_h { |named_arg| {named_arg.name, accept(named_arg.value)} }
 
-      execute_macro_method(macro_method, node, evaluated_args, evaluated_named_args)
+      execute_macro_method(macro_method, node, evaluated_args, evaluated_named_args, node.block)
     end
 
     # Looks up a macro method by name in the scope chain
@@ -135,28 +135,52 @@ module Crystal
     end
 
     # Executes a macro method with the given arguments
-    private def execute_macro_method(macro_method : Macro, call_node, args, named_args : Hash(String, ASTNode)?)
-      # Validate argument types against parameter restrictions
-      macro_method.args.each_with_index do |param, index|
-        next unless restriction = param.restriction
-        next if index >= args.size # Will be handled by default values
+    private def execute_macro_method(macro_method : Macro, call_node, args, named_args : Hash(String, ASTNode)?, block : Block? = nil)
+      splat_index = macro_method.splat_index
+      double_splat = macro_method.double_splat
 
-        arg = args[index]
-        validate_macro_method_type(arg, restriction, call_node, param.name)
-      end
-
-      # Create a new interpreter scope for the macro method body
-      # Map arguments to parameter names
       body_vars = {} of String => ASTNode
+
+      # Bind regular arguments (skip splat index)
       macro_method.args.each_with_index do |param, index|
-        if index < args.size
-          body_vars[param.name] = args[index]
+        next if index == splat_index
+
+        arg = if index < args.size
+                # Handle args before splat normally
+                if splat_index && index > splat_index
+                  # Args after splat need offset calculation
+                  splat_size = args.size - macro_method.args.size + 1
+                  args[index + splat_size - 1]?
+                else
+                  args[index]?
+                end
+              end
+
+        if arg
+          if restriction = param.restriction
+            validate_macro_method_type(arg, restriction, call_node, param.name)
+          end
+          body_vars[param.name] = arg
         elsif default_value = param.default_value
           body_vars[param.name] = accept(default_value)
         end
       end
 
-      # Handle named arguments (validate and bind in one pass)
+      # Gather splat args into a TupleLiteral.
+      # NOTE: Type restrictions on splats/double splats validate each element,
+      # not the collection itself. We skip this validation for now since we're
+      # doing lightweight type checking.
+      if splat_index
+        splat_param = macro_method.args[splat_index]
+        unless splat_param.name.empty?
+          splat_size = args.size - (macro_method.args.size - 1)
+          splat_size = 0 if splat_size < 0
+          splat_elements = splat_index < args.size ? args[splat_index, splat_size] : [] of ASTNode
+          body_vars[splat_param.name] = TupleLiteral.new(splat_elements)
+        end
+      end
+
+      # Handle named arguments
       if named_args
         named_args.each do |name, arg|
           param = macro_method.args.find { |p| p.external_name == name }
@@ -168,6 +192,24 @@ module Crystal
         end
       end
 
+      # Handle double splat - gather extra named args
+      if double_splat
+        named_tuple_elems = [] of NamedTupleLiteral::Entry
+        if named_args
+          named_args.each do |name, arg|
+            # Skip args already bound to a parameter
+            next if macro_method.args.any? &.external_name.==(name)
+            named_tuple_elems << NamedTupleLiteral::Entry.new(name, arg)
+          end
+        end
+        body_vars[double_splat.name] = NamedTupleLiteral.new(named_tuple_elems)
+      end
+
+      # Handle block arg - bind the block to the named parameter
+      if block_arg = macro_method.block_arg
+        body_vars[block_arg.name] = block || Nop.new
+      end
+
       # Execute the body in a new interpreter with the parameter bindings
       sub_interpreter = MacroInterpreter.new(
         @program,
@@ -175,7 +217,7 @@ module Crystal
         @path_lookup,
         macro_method.location,
         body_vars,
-        nil, # block
+        block,
         @def,
         true # in_macro
       )
@@ -205,7 +247,7 @@ module Crystal
     end
 
     # Executes a macro method defined on a type (called when receiver is a TypeNode)
-    def execute_type_macro_method?(type : Type, method : String, args : Array(ASTNode), named_args : Hash(String, ASTNode)?, name_loc : Location?)
+    def execute_type_macro_method?(type : Type, method : String, args : Array(ASTNode), named_args : Hash(String, ASTNode)?, block : Block?, name_loc : Location?)
       # Look up macro method on the type
       macro_method = find_macro_method_in_type(type, method, args, nil)
       return nil unless macro_method
@@ -218,7 +260,7 @@ module Crystal
         call_node.raise "private macro def '#{method}' called for #{type}"
       end
 
-      execute_macro_method(macro_method, call_node, args, named_args)
+      execute_macro_method(macro_method, call_node, args, named_args, block)
     end
 
     def interpret_compare_versions(node)
@@ -2272,7 +2314,7 @@ module Crystal
         interpret_check_args { TypeNode.has_inner_pointers?(type, name_loc) }
       else
         # Check for user-defined macro methods on this type
-        if result = interpreter.execute_type_macro_method?(type, method, args, named_args, name_loc)
+        if result = interpreter.execute_type_macro_method?(type, method, args, named_args, block, name_loc)
           result
         else
           super
