@@ -3292,7 +3292,7 @@ module Crystal
               found_default_value: found_default_value,
               found_splat: found_splat,
               found_double_splat: found_double_splat,
-              allow_restrictions: true)  # Allow type restrictions for macro methods
+              allow_restrictions: true) # Allow type restrictions for macro methods
             if !found_default_value && extras.default_value
               found_default_value = true
             end
@@ -3359,10 +3359,16 @@ module Crystal
           body, end_location = parse_exception_handler(body, implicit: true)
         end
 
-        node = Macro.new(name, params, body, block_param, splat_index,
+        node = Macro.new(
+          name,
+          params,
+          body,
+          block_param,
+          splat_index,
           double_splat: double_splat,
           return_type: return_type,
-          macro_method: true)
+          macro_method: true
+        )
         node.name_location = name_location
         node.doc = doc
         node.end_location = end_location

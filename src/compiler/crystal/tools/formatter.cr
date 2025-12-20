@@ -1729,6 +1729,10 @@ module Crystal
 
       write_keyword :macro, " "
 
+      if node.macro_method?
+        write_keyword :def, " "
+      end
+
       write node.name
       next_token
 
@@ -1740,7 +1744,16 @@ module Crystal
 
       format_def_args node
 
-      if macro_literal_source = macro_literal_contents(node.body)
+      if return_type = node.return_type
+        skip_space
+        write_token " ", :OP_COLON, " "
+        skip_space_or_newline
+        accept return_type
+      end
+
+      if node.macro_method?
+        format_nested_with_end node.body
+      elsif macro_literal_source = macro_literal_contents(node.body)
         format_macro_literal_only(node, macro_literal_source, macro_node_line)
       else
         format_macro_body node

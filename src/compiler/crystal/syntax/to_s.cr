@@ -849,41 +849,62 @@ module Crystal
     end
 
     def visit(node : Macro)
-      @str << "macro "
+      if node.macro_method?
+        @str << "macro def "
+      else
+        @str << "macro "
+      end
       @str << node.name.to_s
       if node.args.size > 0 || node.block_arg || node.double_splat
         @str << '('
         printed_arg = false
-        # NOTE: `drop_parens_for_proc_notation` needed here if macros support
-        # restrictions
         node.args.each_with_index do |arg, i|
           @str << ", " if printed_arg
           @current_arg_type = :splat if i == node.splat_index
-          arg.accept self
+          if node.macro_method?
+            drop_parens_for_proc_notation(arg, &.accept(self))
+          else
+            arg.accept self
+          end
           printed_arg = true
         end
         if double_splat = node.double_splat
           @str << ", " if printed_arg
           @current_arg_type = :double_splat
-          double_splat.accept self
+          if node.macro_method?
+            drop_parens_for_proc_notation(double_splat, &.accept(self))
+          else
+            double_splat.accept self
+          end
           printed_arg = true
         end
         if block_arg = node.block_arg
           @str << ", " if printed_arg
           @current_arg_type = :block_arg
-          block_arg.accept self
+          if node.macro_method?
+            drop_parens_for_proc_notation(block_arg, &.accept(self))
+          else
+            block_arg.accept self
+          end
         end
         @str << ')'
       end
+      if return_type = node.return_type
+        @str << " : "
+        return_type.accept self
+      end
       newline
 
-      with_indent do
-        inside_macro do
-          accept node.body
+      if node.macro_method?
+        accept_with_indent(node.body)
+      else
+        with_indent do
+          inside_macro do
+            accept node.body
+          end
         end
       end
 
-      # newline
       append_indent
       @str << "end"
       false

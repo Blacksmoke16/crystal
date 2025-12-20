@@ -2051,5 +2051,73 @@ describe "Code gen: macro" do
         format_name("test")
         CRYSTAL
     end
+
+    it "errors when calling private macro method with explicit receiver" do
+      assert_error(<<-CRYSTAL, "private macro def 'helper' called for Foo")
+        class Foo
+          private macro def helper(x : StringLiteral) : StringLiteral
+            x.upcase
+          end
+        end
+
+        macro test
+          {{ Foo.helper("hello") }}
+        end
+
+        test
+        CRYSTAL
+    end
+
+    it "allows calling private macro method without receiver from inside the type" do
+      run(<<-CRYSTAL).to_string.should eq("HELLO")
+        class Foo
+          private macro def helper(x : StringLiteral) : StringLiteral
+            x.upcase
+          end
+
+          macro generate
+            {{ helper("hello") }}
+          end
+        end
+
+        Foo.generate
+        CRYSTAL
+    end
+
+    it "calls macro method when both macro and macro def exist with same name" do
+      run(<<-CRYSTAL).to_i.should eq(2)
+        class Foo
+          macro foo
+            1
+          end
+
+          macro def foo : NumberLiteral
+            2
+          end
+
+          macro test
+            {{ Foo.foo }}
+          end
+        end
+
+        Foo.test
+        CRYSTAL
+    end
+
+    it "calls regular macro when both macro and macro def exist with same name" do
+      run(<<-CRYSTAL).to_i.should eq(1)
+        class Foo
+          macro foo
+            1
+          end
+
+          macro def foo : NumberLiteral
+            2
+          end
+        end
+
+        Foo.foo
+        CRYSTAL
+    end
   end
 end

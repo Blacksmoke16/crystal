@@ -950,4 +950,11 @@ describe "ASTNode#to_s" do
       end
     %}
     CRYSTAL
+
+  # macro def (macro methods)
+  expect_to_s "macro def foo\nend"
+  expect_to_s "macro def foo(x : StringLiteral)\nend"
+  expect_to_s "macro def foo(x : StringLiteral) : StringLiteral\nend"
+  expect_to_s "macro def foo(x : StringLiteral) : StringLiteral\n  x.upcase\nend"
+  expect_to_s "macro def foo(x : StringLiteral | SymbolLiteral) : StringLiteral\n  x.stringify\nend"
 end

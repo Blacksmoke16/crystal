@@ -520,6 +520,9 @@ module Crystal
 
   class Macro
     def overrides?(other : Macro)
+      # A macro method and a regular macro with the same name can coexist
+      return false if macro_method? != other.macro_method?
+
       # If they have different number of arguments, splat index or presence of
       # double splat, no override.
       if args.size != other.args.size ||

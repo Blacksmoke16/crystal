@@ -124,12 +124,13 @@ module Crystal
 
     # Finds a macro method in a specific type
     private def find_macro_method_in_type(type, name, args, named_args)
-      result = type.lookup_macro(name, args, named_args)
-      case result
-      when Macro
-        result.macro_method? ? result : nil
-      else
-        nil
+      # Look directly in the macros hash, filtering for macro methods only.
+      # This allows macro methods to coexist with regular macros of the same name.
+      macros_scope = type.metaclass? ? type : type.metaclass
+      if macros_scope.is_a?(ModuleType)
+        if macros = macros_scope.macros.try &.[name]?
+          macros.find { |m| m.macro_method? && m.matches?(args, named_args) }
+        end
       end
     end
 
@@ -138,7 +139,7 @@ module Crystal
       # Validate argument types against parameter restrictions
       macro_method.args.each_with_index do |param, index|
         next unless restriction = param.restriction
-        next if index >= args.size  # Will be handled by default values
+        next if index >= args.size # Will be handled by default values
 
         arg = args[index]
         validate_macro_method_arg_type(arg, restriction, param.name, call_node)
@@ -181,9 +182,9 @@ module Crystal
         @path_lookup,
         macro_method.location,
         body_vars,
-        nil,  # block
+        nil, # block
         @def,
-        true  # in_macro
+        true # in_macro
       )
 
       # Execute the body
@@ -201,7 +202,7 @@ module Crystal
     # Validates that an argument matches the expected macro type
     private def validate_macro_method_arg_type(arg, restriction, param_name, call_node)
       expected_types = macro_type_names_from_restriction(restriction)
-      return if expected_types.empty?  # No restriction or unknown restriction
+      return if expected_types.empty? # No restriction or unknown restriction
 
       actual_type = arg.class_desc
       return if expected_types.any? { |expected| macro_type_matches?(actual_type, expected) }
@@ -239,7 +240,7 @@ module Crystal
 
     # Checks if an actual macro type matches an expected type name
     private def macro_type_matches?(actual : String, expected : String) : Bool
-      return true if expected == "ASTNode"  # ASTNode matches anything
+      return true if expected == "ASTNode" # ASTNode matches anything
       actual == expected
     end
 
@@ -252,6 +253,10 @@ module Crystal
       # Build a synthetic call node for error reporting
       call_node = Call.new(nil, method)
       call_node.location = name_loc
+
+      if macro_method.visibility.private?
+        call_node.raise "private macro def '#{method}' called for #{type}"
+      end
 
       execute_macro_method(macro_method, call_node, args, named_args)
     end

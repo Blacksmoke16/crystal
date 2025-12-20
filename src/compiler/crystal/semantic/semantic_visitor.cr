@@ -308,7 +308,11 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
       return false
     end
 
-    return false unless the_macro.is_a?(Macro)
+    unless the_macro.is_a?(Macro)
+      # Check if there's a macro method with this name - give a better error message
+      check_macro_method_outside_expansion(node, macro_scope)
+      return false
+    end
 
     # Macro methods can only be called inside macro expressions
     if the_macro.macro_method?
@@ -377,6 +381,20 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
 
     generated_nodes.accept self if accept
     generated_nodes
+  end
+
+  private def check_macro_method_outside_expansion(node : Call, macro_scope : Type?)
+    # Check if there's a macro method with this name that the user might be
+    # trying to call outside of a macro expression
+    scope = macro_scope || @scope || current_type
+    scope = scope.metaclass unless scope.metaclass?
+    if scope.is_a?(ModuleType)
+      if macros = scope.macros.try(&.[node.name]?)
+        if macros.any?(&.macro_method?)
+          node.raise "macro method '#{node.name}' can only be called inside a macro expression ({{ }})"
+        end
+      end
+    end
   end
 
   class PropagateDocVisitor < Visitor

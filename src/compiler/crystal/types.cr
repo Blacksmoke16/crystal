@@ -489,7 +489,8 @@ module Crystal
       macros_scope = self.metaclass? ? self : self.metaclass
 
       if macros = macros_scope.macros.try &.[name]?
-        match = macros.find &.matches?(args, named_args)
+        # Skip macro methods - they are looked up separately
+        match = macros.find { |m| !m.macro_method? && m.matches?(args, named_args) }
         return match if match
       end
 
