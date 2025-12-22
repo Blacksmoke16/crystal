@@ -26,62 +26,75 @@ macro generate
 end
 ```
 
+### AST Design
+
+Macro methods use a dedicated `MacroDef` AST type that inherits from `MacroBase`:
+
+```crystal
+abstract class MacroBase < ASTNode
+  # Shared properties: name, args, body, double_splat, block_arg,
+  #                    name_location, splat_index, doc, visibility
+end
+
+class Macro < MacroBase
+  # Regular macros - body contains MacroLiteral/MacroExpression
+end
+
+class MacroDef < MacroBase
+  property return_type : ASTNode?
+  # Macro methods - body contains pure Crystal expressions
+end
+```
+
 ### Key Implementation Details
 
 **Files modified:**
 
 1. `src/compiler/crystal/syntax/ast.cr`
-   - Added `return_type : ASTNode?` and `macro_method? : Bool` to `Macro` class
+   - `MacroBase` abstract class with shared properties
+   - `Macro` for regular macros
+   - `MacroDef` for macro methods with `return_type` property
 
 2. `src/compiler/crystal/syntax/parser.cr`
-   - Added `parse_macro_method` at line ~3253
-   - Detects `macro def` and parses with type restrictions enabled
-   - Body parsed as regular expressions (not macro body syntax)
+   - `parse_macro_method` returns `MacroDef` (not `Macro` with flag)
+   - Parses with type restrictions enabled
+   - Body parsed as regular expressions
 
-3. `src/compiler/crystal/semantic/semantic_visitor.cr`
-   - Added check at line ~311-316 to error when macro method called outside `{{ }}`
-   - Added `check_macro_method_outside_expansion` helper for proper error messages
+3. `src/compiler/crystal/types.cr`
+   - `macros` hash stores `Array(MacroBase)` (both Macro and MacroDef)
+   - `lookup_macro` filters to only return `Macro` instances
 
-4. `src/compiler/crystal/semantic/cleanup_transformer.cr`
-   - Added `transform(node : Macro)` override at line ~135
-   - Skips body transformation for macro methods (body contains macro expressions not valid as regular Crystal)
+4. `src/compiler/crystal/semantic/semantic_visitor.cr`
+   - `nesting_exp?` includes `MacroDef` in non-nesting list
+   - `check_macro_def_outside_expansion` for error messages
 
-5. `src/compiler/crystal/macros/methods.cr`
-   - `interpret_user_macro_method?` at line ~95 - entry point for user macro method calls
-   - `lookup_macro_method` at line ~111 - searches scope chain
-   - `find_macro_method_in_type` at line ~126 - checks if macro is a macro_method
-   - `execute_macro_method` at line ~137 - validates types, creates sub-interpreter, executes body
-   - `execute_type_macro_method?` at line ~2295 (in TypeNode#interpret) - handles type-scoped calls
+5. `src/compiler/crystal/semantic/cleanup_transformer.cr`
+   - `transform(node : MacroDef)` skips body transformation
 
-6. `src/compiler/crystal/semantic/restrictions.cr`
-   - Modified `Macro#overrides?` to allow macro/macro def coexistence
+6. `src/compiler/crystal/macros/methods.cr`
+   - `find_macro_methods_in_type` returns `Array(MacroDef)`
+   - `execute_macro_method` takes `MacroDef` parameter
 
-7. `src/compiler/crystal/syntax/to_s.cr`
-   - Updated `visit(node : Macro)` for macro def output
+7. `src/compiler/crystal/semantic/restrictions.cr`
+   - `MacroBase#overrides?` compares `self.class != other.class`
 
-8. `src/compiler/crystal/tools/formatter.cr`
-   - Updated `visit(node : Macro)` for macro def formatting
+8. `src/compiler/crystal/syntax/to_s.cr`
+   - Separate `visit(node : Macro)` and `visit(node : MacroDef)` handlers
 
-9. `spec/compiler/codegen/macro_spec.cr`
-   - Tests at line ~1893-2330
+9. `src/compiler/crystal/tools/formatter.cr`
+   - Separate `visit(node : Macro)` and `visit(node : MacroDef)` handlers
 
-10. `spec/compiler/parser/to_s_spec.cr`
-    - Tests for macro def to_s
+10. `src/compiler/crystal/tools/doc/type.cr`
+    - `macro_methods` selects `MacroDef` instances
 
-11. `spec/compiler/formatter/formatter_spec.cr`
-    - Tests for macro def formatting
+11. Visitors/Transformers with `MacroDef` handlers:
+    - `codegen/codegen.cr`, `semantic/top_level_visitor.cr`
+    - `semantic/normalizer.cr`, `semantic/fix_missing_types.cr`
+    - `syntax/transformer.cr`, `tools/print_types_visitor.cr`
+    - `tools/playground/agent_instrumentor_transformer.cr`, `interpreter/compiler.cr`
 
-12. `src/compiler/crystal/tools/doc/type.cr`
-    - Added `macro_methods` method to separate macro methods from regular macros
-
-13. `src/compiler/crystal/tools/doc/templates.cr`
-    - Added `label` parameter to `MacrosInheritedTemplate`
-
-14. `src/compiler/crystal/tools/doc/html/type.html`
-    - Added "Macro Method Summary" and "Macro Method Detail" sections
-
-15. `src/crystal/syntax_highlighter.cr`
-    - Fixed `{{` highlighting inconsistency (added `op_lcurly_lcurly?` to non-colorized operators)
+12. `spec/compiler/codegen/macro_spec.cr`
+    - Tests at line ~1893-2330
 
 ### Type Validation
 
@@ -102,9 +115,9 @@ Inside macro {{ ... }}:
         ├─ Built-in? (env, flag?, puts, etc.) → handle directly
         └─ Not built-in? → interpret_user_macro_method?(node)
             ├─ lookup_macro_method(name, args, named_args)
-            │     ├─ Check @scope for macro with macro_method?=true
-            │     └─ Check @program for macro with macro_method?=true
-            └─ execute_macro_method(macro, node, args, named_args)
+            │     ├─ Check @scope for MacroDef instances
+            │     └─ Check @program for MacroDef instances
+            └─ execute_macro_method(macro_def, node, args, named_args)
                   ├─ Validate argument types
                   ├─ Create MacroInterpreter with param bindings
                   ├─ Execute body
@@ -189,9 +202,9 @@ Foo.foo              # Calls regular macro (outside {{ }})
 ```
 
 Implementation:
-- `src/compiler/crystal/semantic/restrictions.cr`: `Macro#overrides?` returns false when comparing macro method with regular macro
-- `src/compiler/crystal/types.cr`: `lookup_macro` skips macro methods
-- `src/compiler/crystal/macros/methods.cr`: `find_macro_method_in_type` searches for macro methods only
+- `src/compiler/crystal/semantic/restrictions.cr`: `MacroBase#overrides?` returns false when comparing different subclasses
+- `src/compiler/crystal/types.cr`: `lookup_macro` filters to only return `Macro` instances
+- `src/compiler/crystal/macros/methods.cr`: `find_macro_methods_in_type` selects only `MacroDef` instances
 
 ### to_s and Formatter Support
 

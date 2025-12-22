@@ -326,11 +326,11 @@ class Crystal::Doc::Type
   end
 
   def macros
-    all_macros.reject &.macro.macro_method?
+    all_macros.reject(MacroDef)
   end
 
   def macro_methods
-    all_macros.select &.macro.macro_method?
+    all_macros.select(MacroDef)
   end
 
   @constants : Array(Constant)?

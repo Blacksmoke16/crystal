@@ -250,7 +250,7 @@ module Crystal
     end
   end
 
-  class Macro
+  class MacroBase
     include Annotatable
 
     property! owner : Type

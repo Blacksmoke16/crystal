@@ -3359,15 +3359,14 @@ module Crystal
           body, end_location = parse_exception_handler(body, implicit: true)
         end
 
-        node = Macro.new(
+        node = MacroDef.new(
           name,
           params,
           body,
           block_param,
           splat_index,
           double_splat: double_splat,
-          return_type: return_type,
-          macro_method: true
+          return_type: return_type
         )
         node.name_location = name_location
         node.doc = doc

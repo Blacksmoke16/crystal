@@ -165,6 +165,26 @@ module Crystal
       node
     end
 
+    def transform(node : MacroDef)
+      transform_many node.args
+
+      if double_splat = node.double_splat
+        node.double_splat = double_splat.transform(self)
+      end
+
+      if block_arg = node.block_arg
+        node.block_arg = block_arg.transform(self)
+      end
+
+      if return_type = node.return_type
+        node.return_type = return_type.transform(self)
+      end
+
+      node.body = node.body.transform(self)
+
+      node
+    end
+
     def transform(node : PointerOf)
       node.exp = node.exp.transform(self)
       node

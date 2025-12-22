@@ -176,6 +176,12 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     false
   end
 
+  def visit(node : MacroDef)
+    check_outside_exp node, "declare macro"
+    node.set_type(@program.nil)
+    false
+  end
+
   def visit(node : Annotation)
     annotations = @annotations ||= [] of Annotation
     annotations << node
@@ -256,7 +262,7 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
 
   def nesting_exp?(node)
     case node
-    when Expressions, LibDef, CStructOrUnionDef, ClassDef, ModuleDef, FunDef, Def, Macro,
+    when Expressions, LibDef, CStructOrUnionDef, ClassDef, ModuleDef, FunDef, Def, Macro, MacroDef,
          Alias, Include, Extend, EnumDef, VisibilityModifier, MacroFor, MacroIf, MacroExpression,
          FileNode, TypeDeclaration, Require, AnnotationDef
       false
@@ -309,14 +315,9 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     end
 
     unless the_macro.is_a?(Macro)
-      # Check if there's a macro method with this name - give a better error message
-      check_macro_method_outside_expansion(node, macro_scope)
+      # Check if there's a MacroDef with this name - give a better error message
+      check_macro_def_outside_expansion(node, macro_scope)
       return false
-    end
-
-    # Macro methods can only be called inside macro expressions
-    if the_macro.macro_method?
-      node.raise "macro method '#{node.name}' can only be called inside a macro expression ({{ }})"
     end
 
     # If we find a macro outside a def/block and this is not the first pass it means that the
@@ -383,14 +384,14 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     generated_nodes
   end
 
-  private def check_macro_method_outside_expansion(node : Call, macro_scope : Type?)
-    # Check if there's a macro method with this name that the user might be
+  private def check_macro_def_outside_expansion(node : Call, macro_scope : Type?)
+    # Check if there's a MacroDef with this name that the user might be
     # trying to call outside of a macro expression
     scope = macro_scope || @scope || current_type
     scope = scope.metaclass unless scope.metaclass?
     if scope.is_a?(ModuleType)
       if macros = scope.macros.try(&.[node.name]?)
-        if macros.any?(&.macro_method?)
+        if macros.any? { |m| m.is_a?(MacroDef) }
           node.raise "macro method '#{node.name}' can only be called inside a macro expression ({{ }})"
         end
       end

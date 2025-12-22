@@ -122,25 +122,25 @@ module Crystal
     end
 
     # Looks up all macro methods with a given name in the scope chain
-    private def lookup_macro_methods(name) : Array(Macro)
+    private def lookup_macro_methods(name) : Array(MacroDef)
       result = find_macro_methods_in_type(@scope, name)
       result.concat(find_macro_methods_in_type(@program, name))
       result
     end
 
-    # Finds all macro methods with a given name in a type
-    private def find_macro_methods_in_type(type, name) : Array(Macro)
+    # Finds all MacroDefs with a given name in a type
+    private def find_macro_methods_in_type(type, name) : Array(MacroDef)
       macros_scope = type.metaclass? ? type : type.metaclass
       if macros_scope.is_a?(ModuleType)
         if macros = macros_scope.macros.try &.[name]?
-          return macros.select(&.macro_method?)
+          return macros.select(MacroDef).map(&.as(MacroDef))
         end
       end
-      [] of Macro
+      [] of MacroDef
     end
 
     # Generates error message for wrong number of arguments
-    private def wrong_number_of_arguments_message(name, given, methods : Array(Macro)) : String
+    private def wrong_number_of_arguments_message(name, given, methods : Array(MacroDef)) : String
       expected = methods.map { |m|
         required = m.args.count { |arg| !arg.default_value && arg.name != m.splat_index.try { |i| m.args[i]?.try(&.name) } }
         total = m.args.size
@@ -152,7 +152,7 @@ module Crystal
     end
 
     # Executes a macro method with the given arguments
-    private def execute_macro_method(macro_method : Macro, call_node, args, named_args : Hash(String, ASTNode)?, block : Block? = nil)
+    private def execute_macro_method(macro_method : MacroDef, call_node, args, named_args : Hash(String, ASTNode)?, block : Block? = nil)
       splat_index = macro_method.splat_index
       double_splat = macro_method.double_splat
 
@@ -252,7 +252,7 @@ module Crystal
     end
 
     # Validates that a value matches the expected macro type restriction
-    private def validate_macro_method_type(value : ASTNode, restriction : ASTNode, call_node, macro_method : Macro, param_name : String? = nil)
+    private def validate_macro_method_type(value : ASTNode, restriction : ASTNode, call_node, macro_method : MacroDef, param_name : String? = nil)
       macro_type = @program.lookup_macro_type(restriction)
       return if value.macro_is_a?(macro_type)
 

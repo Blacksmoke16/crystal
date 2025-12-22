@@ -33,6 +33,10 @@ class Crystal::FixMissingTypes < Crystal::Visitor
     false
   end
 
+  def visit(node : MacroDef)
+    false
+  end
+
   def visit(node : ProcLiteral)
     node.def.body.accept self
     unless node.def.type?

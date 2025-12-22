@@ -12,6 +12,11 @@ module Crystal
         false
       end
 
+      def visit(node : MacroDef)
+        @names << node.name
+        false
+      end
+
       def visit(node)
         true
       end

@@ -1715,6 +1715,11 @@ module Crystal
       false
     end
 
+    def visit(node : MacroDef)
+      @last = llvm_nil
+      false
+    end
+
     def visit(node : Path)
       if const = node.target_const
         read_const(const, node)

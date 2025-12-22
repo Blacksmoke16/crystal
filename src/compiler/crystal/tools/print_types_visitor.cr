@@ -33,6 +33,10 @@ module Crystal
       false
     end
 
+    def visit(node : MacroDef)
+      false
+    end
+
     def visit(node : Assign)
       !node.target.is_a?(Path)
     end
