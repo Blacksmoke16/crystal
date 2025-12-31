@@ -1273,4 +1273,78 @@ describe "Semantic: annotation" do
       end
       CRYSTAL
   end
+
+  describe "#annotate" do
+    it "adds annotation with no arguments" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation Foo; end
+        class Bar; end
+
+        {% Bar.annotate(Foo) %}
+        {% if Bar.annotation(Foo) %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "adds annotation with positional arguments" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation Foo; end
+        class Bar; end
+
+        {% Bar.annotate(Foo, 1, "hello") %}
+        {% if Bar.annotation(Foo).args == {1, "hello"} %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "adds annotation with named arguments" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation Foo; end
+        class Bar; end
+
+        {% Bar.annotate(Foo, name: "test", value: 42) %}
+        {% if Bar.annotation(Foo).named_args == {name: "test", value: 42} %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "adds annotation with both positional and named arguments" do
+      assert_type(<<-CRYSTAL) { int32 }
+        annotation Foo; end
+        class Bar; end
+
+        {% Bar.annotate(Foo, 1, 2, name: "test") %}
+        {% if Bar.annotation(Foo).args == {1, 2} && Bar.annotation(Foo).named_args == {name: "test"} %}
+          1
+        {% else %}
+          'a'
+        {% end %}
+        CRYSTAL
+    end
+
+    it "errors when first argument is not an annotation type" do
+      assert_error(<<-CRYSTAL, "first argument to 'TypeNode#annotate' must be an annotation type")
+        class Bar; end
+        class NotAnnotation; end
+
+        {% Bar.annotate(NotAnnotation) %}
+        CRYSTAL
+    end
+
+    it "errors when no arguments given" do
+      assert_error(<<-CRYSTAL, "wrong number of arguments")
+        class Bar; end
+        {% Bar.annotate %}
+        CRYSTAL
+    end
+  end
 end

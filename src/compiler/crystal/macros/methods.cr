@@ -2014,6 +2014,8 @@ module Crystal
           return ArrayLiteral.new if annotations.nil?
           ArrayLiteral.map(annotations, &.itself)
         end
+      when "annotate"
+        annotate_type(self, method, args, named_args)
       when "size"
         interpret_check_args do
           type = self.type.instance_type
@@ -3440,6 +3442,33 @@ private def fetch_annotations(node, method, args, named_args, block, &)
     value = yield type
     value || Crystal::NilLiteral.new
   end
+end
+
+private def annotate_type(node, method, args, named_args)
+  if args.empty?
+    node.raise "wrong number of arguments for 'TypeNode#annotate' (given 0, expected 1+)"
+  end
+
+  first_arg = args[0]
+  unless first_arg.is_a?(Crystal::TypeNode)
+    node.raise "first argument to 'TypeNode#annotate' must be a TypeNode, not #{first_arg.class_desc}"
+  end
+
+  annotation_type = first_arg.type
+  unless annotation_type.is_a?(Crystal::AnnotationType)
+    args[0].raise "first argument to 'TypeNode#annotate' must be an annotation type, not #{annotation_type} (#{annotation_type.type_desc})"
+  end
+
+  ann_args = args.size > 1 ? args[1..] : [] of Crystal::ASTNode
+  ann_named_args = named_args.try do |na|
+    na.map { |k, v| Crystal::NamedArgument.new(k, v) }
+  end
+
+  path = Crystal::Path.new(annotation_type.name)
+  ann = Crystal::Annotation.new(path, ann_args, ann_named_args)
+  node.type.add_annotation(annotation_type, ann)
+
+  Crystal::NilLiteral.new
 end
 
 private def sort_by(object, klass, block, interpreter)

@@ -2892,6 +2892,16 @@ module Crystal::Macros
     def annotations : ArrayLiteral(Annotation)
     end
 
+    # Adds an annotation to this type. The first argument must be an annotation type,
+    # followed by any positional and named arguments for the annotation.
+    # Returns `NilLiteral`.
+    #
+    # ```
+    # {% SomeType.annotate(SomeAnnotation, 1, 2, name: "foo") %}
+    # ```
+    def annotate(type : TypeNode, *args, **named_args) : NilLiteral
+    end
+
     # Returns the number of elements in this tuple type or tuple metaclass type.
     # Gives a compile error if this is not one of those types.
     def size : NumberLiteral
