@@ -1812,6 +1812,8 @@ describe Crystal::Formatter do
   assert_format "def execute\n  begin\n    1\n  ensure\n    2\n  end\n  3\nend"
   assert_format "foo.bar=(2)\n1"
   assert_format "inner &.color=(@color)\n1"
+  assert_format "x(&.y = (a.b || c))"
+  assert_format "foo &.bar = (a.b || c)"
   assert_format "ary.size = (1).to_i"
   assert_format "b &.[c].d"
   assert_format "b &.[c]?.d"

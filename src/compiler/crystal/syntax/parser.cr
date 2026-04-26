@@ -1662,12 +1662,16 @@ module Crystal
 
           next_token_skip_space
           if @token.type.op_lparen?
+            paren_location = @token.location
             next_token_skip_space
             exp = parse_op_assign
+            paren_end_location = token_end_location
             check :OP_RPAREN
             next_token_skip_space
+            paren_exp = Expressions.new([exp] of ASTNode).at(paren_location).at_end(paren_end_location)
+            paren_exp.keyword = :paren
             call.name = "#{call.name}="
-            call.args = [exp] of ASTNode
+            call.args = [paren_exp] of ASTNode
             call = parse_atomic_method_suffix call, location
           else
             exp = parse_op_assign
