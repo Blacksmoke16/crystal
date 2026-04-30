@@ -2110,17 +2110,9 @@ module Crystal
           TypeNode.has_constant?(type, value)
         end
       when "methods"
-        interpret_check_args(named_params: ["all"]) do
-          all = if named_args && (all_arg = named_args["all"]?)
-                  unless all_arg.is_a?(BoolLiteral)
-                    all_arg.raise "named argument 'all' to TypeNode#methods must be a BoolLiteral, not #{all_arg.class_desc}"
-                  end
-                  all_arg.value
-                else
-                  false
-                end
-          TypeNode.methods(type, all: all)
-        end
+        interpret_check_args { TypeNode.methods(type) }
+      when "all_methods"
+        interpret_check_args { TypeNode.all_methods(type) }
       when "has_method?"
         interpret_check_args do |arg|
           value = arg.to_string("argument to 'TypeNode#has_method?'")
@@ -2428,16 +2420,18 @@ module Crystal
       end
     end
 
-    def self.methods(type, *, all : Bool = false)
+    def self.methods(type)
       defs = [] of ASTNode
       collect_methods(defs, type)
+      ArrayLiteral.new(defs)
+    end
 
-      if all
-        type.ancestors.each do |ancestor|
-          collect_methods(defs, ancestor)
-        end
+    def self.all_methods(type)
+      defs = [] of ASTNode
+      collect_methods(defs, type)
+      type.ancestors.each do |ancestor|
+        collect_methods(defs, ancestor)
       end
-
       ArrayLiteral.new(defs)
     end
 
