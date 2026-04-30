@@ -1964,32 +1964,55 @@ module Crystal
         end
       end
 
-      it "executes methods" do
-        # Only includes methods defined on the type itself, excluding ancestors.
-        assert_macro("{{x.methods.map &.name}}", %([foo])) do |program|
-          parent = NonGenericClassType.new(program, program, "Parent", program.reference)
-          parent.add_def Def.new "parent_method"
+      describe "#methods" do
+        it "only includes methods defined on the type itself, excluding descendants and ancestors" do
+          assert_macro("{{x.methods.map &.name}}", %([parent_method])) do |program|
+            mixin = NonGenericModuleType.new(program, program, "Mixin")
+            mixin.add_def Def.new "mixin_method"
 
-          child = NonGenericClassType.new(program, program, "Child", parent)
-          child.add_def Def.new "foo"
+            ancestor_type = NonGenericClassType.new(program, program, "AncestorType", program.reference)
+            ancestor_type.add_def Def.new "parent_method"
+            ancestor_type.include mixin
 
-          {x: TypeNode.new(child)}
+            some_type = NonGenericClassType.new(program, program, "SomeType", ancestor_type)
+            some_type.add_def Def.new "foo"
+
+            {x: TypeNode.new(ancestor_type)}
+          end
         end
       end
 
-      it "executes all_methods" do
-        assert_macro("{{x.all_methods.map &.name}}", %([child_method, parent_method, mixin_method])) do |program|
-          mixin = NonGenericModuleType.new(program, program, "Mixin")
-          mixin.add_def Def.new "mixin_method"
+      describe "#all_methods" do
+        it "includes methods defined on a type and its ancestors" do
+          assert_macro("{{x.all_methods.map &.name}}", %([child_method, parent_method, mixin_method])) do |program|
+            mixin = NonGenericModuleType.new(program, program, "Mixin")
+            mixin.add_def Def.new "mixin_method"
 
-          parent = NonGenericClassType.new(program, program, "Parent", program.reference)
-          parent.add_def Def.new "parent_method"
-          parent.include mixin
+            ancestor_type = NonGenericClassType.new(program, program, "AncestorType", program.reference)
+            ancestor_type.add_def Def.new "parent_method"
+            ancestor_type.include mixin
 
-          child = NonGenericClassType.new(program, program, "Child", parent)
-          child.add_def Def.new "child_method"
+            some_type = NonGenericClassType.new(program, program, "SomeType", ancestor_type)
+            some_type.add_def Def.new "child_method"
 
-          {x: TypeNode.new(child)}
+            {x: TypeNode.new(some_type)}
+          end
+        end
+
+        it "only includes methods defined on the type itself and ancestors, but excludes descendants" do
+          assert_macro("{{x.all_methods.map &.name}}", %([parent_method, mixin_method])) do |program|
+            mixin = NonGenericModuleType.new(program, program, "Mixin")
+            mixin.add_def Def.new "mixin_method"
+
+            ancestor_type = NonGenericClassType.new(program, program, "AncestorType", program.reference)
+            ancestor_type.add_def Def.new "parent_method"
+            ancestor_type.include mixin
+
+            some_type = NonGenericClassType.new(program, program, "SomeType", ancestor_type)
+            some_type.add_def Def.new "foo"
+
+            {x: TypeNode.new(ancestor_type)}
+          end
         end
       end
 
