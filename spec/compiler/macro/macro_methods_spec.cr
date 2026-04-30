@@ -1966,9 +1966,47 @@ module Crystal
 
       it "executes methods" do
         assert_macro("{{x.methods.map &.name}}", %([foo])) do |program|
+          parent = NonGenericClassType.new(program, program, "Parent", program.reference)
+          parent.add_def Def.new "parent_method"
+
+          child = NonGenericClassType.new(program, program, "Child", parent)
+          child.add_def Def.new "foo"
+
+          {x: TypeNode.new(child)}
+        end
+      end
+
+      it "executes methods (all: true)" do
+        assert_macro("{{x.methods(all: true).map &.name}}", %([child_method, parent_method, mixin_method])) do |program|
+          mixin = NonGenericModuleType.new(program, program, "Mixin")
+          mixin.add_def Def.new "mixin_method"
+
+          parent = NonGenericClassType.new(program, program, "Parent", program.reference)
+          parent.add_def Def.new "parent_method"
+          parent.include mixin
+
+          child = NonGenericClassType.new(program, program, "Child", parent)
+          child.add_def Def.new "child_method"
+
+          {x: TypeNode.new(child)}
+        end
+      end
+
+      it "executes methods (all: false)" do
+        assert_macro("{{x.methods(all: false).map &.name}}", %([child_method])) do |program|
+          parent = NonGenericClassType.new(program, program, "Parent", program.reference)
+          parent.add_def Def.new "parent_method"
+
+          child = NonGenericClassType.new(program, program, "Child", parent)
+          child.add_def Def.new "child_method"
+
+          {x: TypeNode.new(child)}
+        end
+      end
+
+      it "errors when methods 'all' named arg is not a BoolLiteral" do
+        assert_macro_error("{{x.methods(all: 1)}}", "named argument 'all' to TypeNode#methods must be a BoolLiteral, not NumberLiteral") do |program|
           klass = NonGenericClassType.new(program, program, "SomeType", program.reference)
-          a_def = Def.new "foo"
-          klass.add_def a_def
           {x: TypeNode.new(klass)}
         end
       end

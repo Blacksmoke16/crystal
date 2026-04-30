@@ -2898,9 +2898,10 @@ module Crystal::Macros
     def has_constant?(name : StringLiteral | SymbolLiteral) : BoolLiteral
     end
 
-    # Returns the instance methods defined by this type, without including
-    # inherited methods.
-    def methods : ArrayLiteral(Def)
+    # Returns the instance methods defined by this type.
+    #
+    # If *all* is `true`, methods inherited from ancestors, including base types (`Reference`, `Value`, and `Object`), are also included.
+    def methods(*, all : BoolLiteral = false) : ArrayLiteral(Def)
     end
 
     # Returns `true` if this type has a method. For example `default_options`
