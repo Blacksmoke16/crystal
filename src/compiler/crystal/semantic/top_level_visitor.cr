@@ -99,8 +99,10 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
       case special_type
       in Nil
         if type_vars = node.type_vars
-          type = GenericClassType.new @program, scope, name, nil, type_vars, false
+          type_var_names = type_vars.map(&.name)
+          type = GenericClassType.new @program, scope, name, nil, type_var_names, false
           type.splat_index = node.splat_index
+          type.type_var_defaults = type_vars.map(&.default_value)
         else
           type = NonGenericClassType.new @program, scope, name, nil, false
         end
@@ -119,8 +121,10 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
           node.raise "BUG: Expected ReferenceStorageType to have a single generic type parameter"
         when node.splat_index
           node.raise "BUG: Expected ReferenceStorageType to have no splat parameter"
+        when type_vars.any?(&.default_value)
+          node.raise "BUG: Expected ReferenceStorageType to have no default type parameter"
         end
-        type = GenericReferenceStorageType.new @program, scope, name, @program.value, type_vars, false
+        type = GenericReferenceStorageType.new @program, scope, name, @program.value, type_vars.map(&.name), false
         type.declare_instance_var("@type_id", @program.int32)
         type.can_be_stored = false
       end
@@ -133,7 +137,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
       if type_vars = node.type_vars
         free_vars = {} of String => TypeVar
         type_vars.each do |type_var|
-          free_vars[type_var] = type.as(GenericType).type_parameter(type_var)
+          free_vars[type_var.name] = type.as(GenericType).type_parameter(type_var.name)
         end
       else
         free_vars = nil
@@ -280,8 +284,9 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
       type = type.as(ModuleType)
     else
       if type_vars = node.type_vars
-        type = GenericModuleType.new @program, scope, name, type_vars
+        type = GenericModuleType.new @program, scope, name, type_vars.map(&.name)
         type.splat_index = node.splat_index
+        type.type_var_defaults = type_vars.map(&.default_value)
       else
         type = NonGenericModuleType.new @program, scope, name
       end
@@ -307,7 +312,12 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
 
   private def check_reopened_generic(generic, node, new_type_vars)
     generic_type_vars = generic.type_vars
-    if new_type_vars != generic_type_vars || node.splat_index != generic.splat_index
+    generic_defaults = generic.type_var_defaults
+    new_names = new_type_vars.map(&.name)
+    new_defaults = new_type_vars.map(&.default_value)
+    # An unset `type_var_defaults` (empty array) is equivalent to all-nil of the same length.
+    generic_defaults = Array(ASTNode?).new(generic_type_vars.size, nil) if generic_defaults.empty? && !generic_type_vars.empty?
+    if new_names != generic_type_vars || new_defaults != generic_defaults || node.splat_index != generic.splat_index
       msg = String.build do |io|
         io << "type var"
         io << 's' if generic_type_vars.size > 1
@@ -315,13 +325,21 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
         generic_type_vars.each_with_index do |var, i|
           io << ", " if i > 0
           io << '*' if i == generic.splat_index
-          var.to_s(io)
+          io << var
+          if (default = generic_defaults[i]?)
+            io << " = "
+            default.to_s(io)
+          end
         end
         io << ", not "
         new_type_vars.each_with_index do |var, i|
           io << ", " if i > 0
           io << '*' if i == node.splat_index
-          var.to_s(io)
+          io << var.name
+          if (default = var.default_value)
+            io << " = "
+            default.to_s(io)
+          end
         end
       end
       node.raise msg

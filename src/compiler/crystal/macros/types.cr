@@ -45,6 +45,7 @@ module Crystal
       @macro_types["Or"] = NonGenericMacroType.new self, "Or", binary_op
 
       @macro_types["Arg"] = NonGenericMacroType.new self, "Arg", ast_node
+      @macro_types["TypeParam"] = NonGenericMacroType.new self, "TypeParam", ast_node
       @macro_types["ProcNotation"] = NonGenericMacroType.new self, "ProcNotation", ast_node
       @macro_types["Def"] = def_type = NonGenericMacroType.new self, "Def", ast_node
       @macro_types["External"] = NonGenericMacroType.new self, "External", def_type

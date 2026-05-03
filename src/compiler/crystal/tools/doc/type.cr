@@ -570,10 +570,15 @@ class Crystal::Doc::Type
     if type_vars = type_vars()
       io << '('
       io << "**" if type.is_a?(GenericType) && type.double_variadic?
+      defaults = type.is_a?(GenericType) ? type.type_var_defaults : nil
       type_vars.each_with_index do |type_var, i|
         io << ", " if i > 0
         io << '*' if type.is_a?(GenericType) && type.splat_index == i
         io << type_var
+        if defaults && (default = defaults[i]?)
+          io << " = "
+          default.to_s(io)
+        end
       end
       io << ')'
     end

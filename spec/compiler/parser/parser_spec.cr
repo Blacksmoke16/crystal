@@ -891,18 +891,22 @@ module Crystal
     it_parses "class Foo\nend", ClassDef.new("Foo".path)
     it_parses "class Foo\ndef foo; end; end", ClassDef.new("Foo".path, [Def.new("foo")] of ASTNode)
     it_parses "class Foo < Bar; end", ClassDef.new("Foo".path, superclass: "Bar".path)
-    it_parses "class Foo(T); end", ClassDef.new("Foo".path, type_vars: ["T"])
-    it_parses "class Foo(T1); end", ClassDef.new("Foo".path, type_vars: ["T1"])
-    it_parses "class Foo(Type); end", ClassDef.new("Foo".path, type_vars: ["Type"])
+    it_parses "class Foo(T); end", ClassDef.new("Foo".path, type_vars: [TypeParam.new("T")])
+    it_parses "class Foo(T1); end", ClassDef.new("Foo".path, type_vars: [TypeParam.new("T1")])
+    it_parses "class Foo(Type); end", ClassDef.new("Foo".path, type_vars: [TypeParam.new("Type")])
+    it_parses "class Foo(T, U = Int32); end", ClassDef.new("Foo".path, type_vars: [TypeParam.new("T"), TypeParam.new("U", default_value: "Int32".path)])
+    it_parses "class Foo(T = Int32, U = String); end", ClassDef.new("Foo".path, type_vars: [TypeParam.new("T", default_value: "Int32".path), TypeParam.new("U", default_value: "String".path)])
     it_parses "abstract class Foo; end", ClassDef.new("Foo".path, abstract: true)
     it_parses "abstract struct Foo; end", ClassDef.new("Foo".path, abstract: true, struct: true)
     assert_syntax_error "class Foo(); end", "must specify at least one type var"
+    assert_syntax_error "class Foo(T = Int32, U); end", "type parameter must have a default value"
+    assert_syntax_error "class Foo(*T = Int32); end", "splat type parameter can't have default value"
 
     it_parses "class Foo < self; end", ClassDef.new("Foo".path, superclass: Self.new)
 
-    it_parses "module Foo(*T); end", ModuleDef.new("Foo".path, type_vars: ["T"], splat_index: 0)
-    it_parses "class Foo(*T); end", ClassDef.new("Foo".path, type_vars: ["T"], splat_index: 0)
-    it_parses "class Foo(T, *U); end", ClassDef.new("Foo".path, type_vars: ["T", "U"], splat_index: 1)
+    it_parses "module Foo(*T); end", ModuleDef.new("Foo".path, type_vars: [TypeParam.new("T")], splat_index: 0)
+    it_parses "class Foo(*T); end", ClassDef.new("Foo".path, type_vars: [TypeParam.new("T")], splat_index: 0)
+    it_parses "class Foo(T, *U); end", ClassDef.new("Foo".path, type_vars: [TypeParam.new("T"), TypeParam.new("U")], splat_index: 1)
     assert_syntax_error "class Foo(*T, *U); end", "splat type parameter already specified"
 
     it_parses "x : Foo(A, *B, C)", TypeDeclaration.new("x".var, Generic.new("Foo".path, ["A".path, "B".path.splat, "C".path] of ASTNode))
@@ -1009,7 +1013,7 @@ module Crystal
 
     it_parses "module Foo; end", ModuleDef.new("Foo".path)
     it_parses "module Foo\ndef foo; end; end", ModuleDef.new("Foo".path, [Def.new("foo")] of ASTNode)
-    it_parses "module Foo(T); end", ModuleDef.new("Foo".path, type_vars: ["T"])
+    it_parses "module Foo(T); end", ModuleDef.new("Foo".path, type_vars: [TypeParam.new("T")])
 
     it_parses "while true; end;", While.new(true.bool)
     it_parses "while true; 1; end;", While.new(true.bool, 1.int32)

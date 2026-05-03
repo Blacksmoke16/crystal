@@ -3519,7 +3519,7 @@ module Crystal
 
     describe ClassDef do
       class_def = ClassDef.new(Path.new("Foo"), abstract: true, superclass: Path.new("Parent"))
-      struct_def = ClassDef.new(Path.new("Foo", "Bar", global: true), type_vars: %w(A B C D), splat_index: 2, struct: true, body: CharLiteral.new('a'))
+      struct_def = ClassDef.new(Path.new("Foo", "Bar", global: true), type_vars: [TypeParam.new("A"), TypeParam.new("B"), TypeParam.new("C"), TypeParam.new("D", default_value: Path.new("Int32"))], splat_index: 2, struct: true, body: CharLiteral.new('a'))
 
       it "executes kind" do
         assert_macro %({{x.kind}}), %(class), {x: class_def}
@@ -3550,6 +3550,13 @@ module Crystal
         assert_macro %({{x.type_vars}}), %([A, B, C, D]), {x: struct_def}
       end
 
+      it "executes type_params" do
+        assert_macro %({{x.type_params}}), %([] of ::NoReturn), {x: class_def}
+        assert_macro %({{x.type_params.map(&.name)}}), %([A, B, C, D]), {x: struct_def}
+        assert_macro %({{x.type_params[3].default_value}}), %(Int32), {x: struct_def}
+        assert_macro %({{x.type_params[0].default_value}}), %(), {x: struct_def}
+      end
+
       it "executes splat_index" do
         assert_macro %({{x.splat_index}}), %(nil), {x: class_def}
         assert_macro %({{x.splat_index}}), %(2), {x: struct_def}
@@ -3573,7 +3580,7 @@ module Crystal
 
     describe ModuleDef do
       module_def1 = ModuleDef.new(Path.new("Foo"))
-      module_def2 = ModuleDef.new(Path.new("Foo", "Bar", global: true), type_vars: %w(A B C D), splat_index: 2, body: CharLiteral.new('a'))
+      module_def2 = ModuleDef.new(Path.new("Foo", "Bar", global: true), type_vars: [TypeParam.new("A"), TypeParam.new("B"), TypeParam.new("C"), TypeParam.new("D", default_value: Path.new("Int32"))], splat_index: 2, body: CharLiteral.new('a'))
 
       it "executes kind" do
         assert_macro %({{x.kind}}), %(module), {x: module_def1}
@@ -3596,6 +3603,12 @@ module Crystal
       it "executes type_vars" do
         assert_macro %({{x.type_vars}}), %([] of ::NoReturn), {x: module_def1}
         assert_macro %({{x.type_vars}}), %([A, B, C, D]), {x: module_def2}
+      end
+
+      it "executes type_params" do
+        assert_macro %({{x.type_params}}), %([] of ::NoReturn), {x: module_def1}
+        assert_macro %({{x.type_params.map(&.name)}}), %([A, B, C, D]), {x: module_def2}
+        assert_macro %({{x.type_params[3].default_value}}), %(Int32), {x: module_def2}
       end
 
       it "executes splat_index" do

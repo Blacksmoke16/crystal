@@ -292,9 +292,12 @@ module Crystal
               node.wrong_number_of "type vars", instance_type, type_vars_count, "#{min_needed}+"
             end
           else
-            needed_count = instance_type.type_vars.size
-            if type_vars_count != needed_count
-              node.wrong_number_of "type vars", instance_type, type_vars_count, needed_count
+            defaulted = instance_type.type_var_defaults_count
+            max_needed = instance_type.type_vars.size
+            min_needed = max_needed - defaulted
+            if type_vars_count < min_needed || type_vars_count > max_needed
+              expected = defaulted > 0 ? "#{min_needed}..#{max_needed}" : max_needed.to_s
+              node.wrong_number_of "type vars", instance_type, type_vars_count, expected
             end
           end
         end

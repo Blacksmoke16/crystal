@@ -1624,6 +1624,21 @@ module Crystal
     end
   end
 
+  class TypeParam
+    def interpret(method : String, args : Array(ASTNode), named_args : Hash(String, ASTNode)?, block : Crystal::Block?, interpreter : Crystal::MacroInterpreter, name_loc : Location?)
+      case method
+      when "name"
+        interpret_check_args { MacroId.new(name) }
+      when "default_value"
+        interpret_check_args { default_value || Nop.new }
+      when "restriction"
+        interpret_check_args { restriction || Nop.new }
+      else
+        super
+      end
+    end
+  end
+
   class Arg
     def interpret(method : String, args : Array(ASTNode), named_args : Hash(String, ASTNode)?, block : Crystal::Block?, interpreter : Crystal::MacroInterpreter, name_loc : Location?)
       case method
@@ -2860,7 +2875,15 @@ module Crystal
       when "type_vars"
         interpret_check_args do
           if (type_vars = @type_vars) && type_vars.present?
-            ArrayLiteral.map(type_vars) { |type_var| MacroId.new(type_var) }
+            ArrayLiteral.map(type_vars) { |type_var| MacroId.new(type_var.name) }
+          else
+            empty_no_return_array
+          end
+        end
+      when "type_params"
+        interpret_check_args do
+          if (type_vars = @type_vars) && type_vars.present?
+            ArrayLiteral.map(type_vars, &.itself)
           else
             empty_no_return_array
           end
@@ -2895,7 +2918,15 @@ module Crystal
       when "type_vars"
         interpret_check_args do
           if (type_vars = @type_vars) && type_vars.present?
-            ArrayLiteral.map(type_vars) { |type_var| MacroId.new(type_var) }
+            ArrayLiteral.map(type_vars) { |type_var| MacroId.new(type_var.name) }
+          else
+            empty_no_return_array
+          end
+        end
+      when "type_params"
+        interpret_check_args do
+          if (type_vars = @type_vars) && type_vars.present?
+            ArrayLiteral.map(type_vars, &.itself)
           else
             empty_no_return_array
           end
@@ -3439,7 +3470,7 @@ private def type_definition_generic_name(node, method, args, named_args, block)
   interpret_check_args(node: node, named_params: ["generic_args"]) do
     if parse_generic_args_argument(node, method, named_args, default: true) && (type_vars = node.type_vars)
       type_vars = type_vars.map_with_index do |type_var, i|
-        param = Crystal::MacroId.new(type_var)
+        param = Crystal::MacroId.new(type_var.name)
         param = Crystal::Splat.new(param) if i == node.splat_index
         param
       end

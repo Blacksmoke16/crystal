@@ -605,6 +605,12 @@ module Crystal
       node
     end
 
+    # `TypeParam` nodes appear only inside `ClassDef`/`ModuleDef` `type_vars`, which standard tree walks don't traverse.
+    # A no-op default keeps every transformer working without forcing each one to declare an overload.
+    def transform(node : TypeParam)
+      node
+    end
+
     def transform_many(exps)
       exps.map!(&.transform(self)) if exps
     end

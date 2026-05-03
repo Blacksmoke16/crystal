@@ -1750,26 +1750,48 @@ module Crystal
       type_vars = nil
       splat_index = nil
       if @token.type.op_lparen?
-        type_vars = [] of String
+        type_vars = [] of TypeParam
 
         next_token_skip_space_or_newline
 
         index = 0
+        found_default_value = false
         while !@token.type.op_rparen?
+          type_param_location = @token.location
+          is_splat = false
           if @token.type.op_star?
             raise "splat type parameter already specified", @token if splat_index
             splat_index = index
+            is_splat = true
             next_token
           end
           type_var_name = check_const
 
-          if type_vars.includes? type_var_name
+          if type_vars.any? { |t| t.name == type_var_name }
             raise "duplicated type parameter name: #{type_var_name}", @token
           end
 
-          type_vars.push type_var_name
-
           next_token_skip_space
+
+          default_value = nil
+          if @token.type.op_eq?
+            raise "splat type parameter can't have default value", @token if is_splat
+
+            slash_is_regex!
+            next_token_skip_space_or_newline
+
+            @no_type_declaration += 1
+            default_value = parse_op_assign
+            @no_type_declaration -= 1
+
+            found_default_value = true
+            skip_space
+          elsif found_default_value && !is_splat
+            raise "type parameter must have a default value", type_param_location
+          end
+
+          type_vars.push TypeParam.new(type_var_name, default_value).at(type_param_location)
+
           if @token.type.op_comma?
             next_token_skip_space_or_newline
           else

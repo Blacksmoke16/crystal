@@ -3456,8 +3456,15 @@ module Crystal
         skip_space_or_newline
         type_vars.each_with_index do |type_var, i|
           write_token :OP_STAR if i == splat_index
-          write type_var
+          write type_var.name
           next_token_skip_space_or_newline
+          if (default = type_var.default_value) && @token.type.op_eq?
+            write " "
+            write_token :OP_EQ, " "
+            skip_space_or_newline
+            accept default
+            skip_space_or_newline
+          end
           if @token.type.op_comma?
             write ", " unless last?(i, type_vars)
             next_token_skip_space_or_newline
