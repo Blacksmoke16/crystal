@@ -264,13 +264,13 @@ describe "ASTNode#inspect" do
       ClassDef[
         Path["Foo"],
         superclass: Path["Bar"],
-        type_vars: ["T"],
+        type_vars: [TypeParam["T"]],
         abstract: true,
         body: Nop.new
       ]
       CRYSTAL
   expect_inspect %q{struct Foo; end}, %q{ClassDef[Path["Foo"], struct: true, body: Nop.new]}
-  expect_inspect %q{module Foo(T); end}, %q{ModuleDef[Path["Foo"], type_vars: ["T"], body: Nop.new]}
+  expect_inspect %q{module Foo(T); end}, %q{ModuleDef[Path["Foo"], type_vars: [TypeParam["T"]], body: Nop.new]}
   expect_inspect %q{annotation Foo; end}, %q(AnnotationDef[Path["Foo"]])
   expect_inspect %q{foo(&.==(2))}, <<-CRYSTAL
       Call[

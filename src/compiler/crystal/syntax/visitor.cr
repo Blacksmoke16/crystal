@@ -6,6 +6,12 @@ module Crystal
       true
     end
 
+    # `TypeParam` nodes appear only inside `ClassDef`/`ModuleDef` `type_vars`, which standard tree walks don't traverse.
+    # A no-op default keeps every visitor working without forcing each one to declare an overload.
+    def visit(node : TypeParam)
+      true
+    end
+
     # def visit(node)
     #   true
     # end

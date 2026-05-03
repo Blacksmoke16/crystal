@@ -1362,4 +1362,83 @@ describe "Semantic: generic class" do
       Bar(Int32).new.@foo
       CRYSTAL
   end
+
+  describe "type parameter defaults" do
+    it "uses default for omitted trailing type parameter" do
+      assert_type(<<-CRYSTAL) { tuple_of([int32.metaclass, string.metaclass] of Type) }
+        class Foo(T, U = String)
+          def types
+            {T, U}
+          end
+        end
+
+        Foo(Int32).new.types
+        CRYSTAL
+    end
+
+    it "allows overriding the defaulted type parameter" do
+      assert_type(<<-CRYSTAL) { tuple_of([int32.metaclass, bool.metaclass] of Type) }
+        class Foo(T, U = String)
+          def types
+            {T, U}
+          end
+        end
+
+        Foo(Int32, Bool).new.types
+        CRYSTAL
+    end
+
+    it "uses default that references an earlier type parameter" do
+      assert_type(<<-CRYSTAL) { tuple_of([int32.metaclass, int32.metaclass] of Type) }
+        class Pair(K, V = K)
+          def types
+            {K, V}
+          end
+        end
+
+        Pair(Int32).new.types
+        CRYSTAL
+    end
+
+    it "errors when fewer than minimum required type vars are given" do
+      assert_error <<-CRYSTAL, "wrong number of type vars for Foo(T, U) (given 0, expected 1..2)"
+        class Foo(T, U = Int32)
+        end
+
+        x : Foo()
+        CRYSTAL
+    end
+
+    it "errors when more than max type vars are given" do
+      assert_error <<-CRYSTAL, "wrong number of type vars for Foo(T, U) (given 3, expected 1..2)"
+        class Foo(T, U = Int32)
+        end
+
+        x : Foo(Int32, String, Bool)
+        CRYSTAL
+    end
+
+    it "errors when reopening with mismatched defaults" do
+      assert_error <<-CRYSTAL, "type vars must be T, U = Int32, not T, U = String"
+        class Foo(T, U = Int32)
+        end
+
+        class Foo(T, U = String)
+        end
+        CRYSTAL
+    end
+
+    it "matches restriction when generic args are omitted" do
+      assert_type(<<-CRYSTAL) { int32 }
+        class Foo(T, U = String)
+        end
+
+        def bar(x : Foo)
+          1
+        end
+
+        bar(Foo(Int32).new)
+        CRYSTAL
+    end
+  end
 end

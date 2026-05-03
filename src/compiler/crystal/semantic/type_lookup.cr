@@ -220,8 +220,12 @@ class Crystal::Type
             node.raise "can only use named arguments with NamedTuple"
           end
 
-          if instance_type.type_vars.size != node.type_vars.size
-            node.wrong_number_of "type vars", instance_type, node.type_vars.size, instance_type.type_vars.size
+          defaulted = instance_type.type_var_defaults_count
+          max_needed = instance_type.type_vars.size
+          min_needed = max_needed - defaulted
+          if node.type_vars.size < min_needed || node.type_vars.size > max_needed
+            expected = defaulted > 0 ? "#{min_needed}..#{max_needed}" : max_needed.to_s
+            node.wrong_number_of "type vars", instance_type, node.type_vars.size, expected
           end
         end
       else

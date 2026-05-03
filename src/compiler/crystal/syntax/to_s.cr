@@ -416,7 +416,11 @@ module Crystal
         type_vars.each_with_index do |type_var, i|
           @str << ", " if i > 0
           @str << '*' if node.splat_index == i
-          @str << type_var.to_s
+          @str << type_var.name
+          if default_value = type_var.default_value
+            @str << " = "
+            default_value.accept self
+          end
         end
         @str << ')'
       end
@@ -440,7 +444,11 @@ module Crystal
         type_vars.each_with_index do |type_var, i|
           @str << ", " if i > 0
           @str << '*' if node.splat_index == i
-          @str << type_var
+          @str << type_var.name
+          if default_value = type_var.default_value
+            @str << " = "
+            default_value.accept self
+          end
         end
         @str << ')'
       end

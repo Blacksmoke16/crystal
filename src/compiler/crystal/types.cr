@@ -714,6 +714,14 @@ module Crystal
       raise "BUG: #{self} doesn't implement type_vars"
     end
 
+    def type_var_defaults : Array(ASTNode?)
+      [] of ASTNode?
+    end
+
+    def type_var_defaults_count
+      0
+    end
+
     def unbound?
       false
     end
@@ -1559,6 +1567,18 @@ module Crystal
     # The index of the `*` in the type variables.
     property splat_index : Int32?
 
+    # Default values for the type parameters, parallel to `type_vars`.
+    # A `nil` entry means the type parameter at that position has no default.
+    # Only the trailing run of entries is allowed to be non-nil (enforced by the parser).
+    property type_var_defaults : Array(ASTNode?) do
+      Array(ASTNode?).new(type_vars.size, nil)
+    end
+
+    # The number of trailing type parameters that have a default value.
+    def type_var_defaults_count : Int32
+      type_var_defaults.count { |d| !d.nil? }
+    end
+
     # Is it `**`? Currently only NamedTuple is.
     property? double_variadic = false
 
@@ -1585,7 +1605,30 @@ module Crystal
       type_parameters[name] ||= TypeParameter.new(program, self, name)
     end
 
+    # Lazily resolves trailing type-parameter defaults relative to the type arguments already supplied,
+    # so that a default may reference earlier type# parameters by name (e.g. `class Pair(K, V = K)` then `Pair(Int32)`).
+    private def expand_type_var_defaults(type_vars)
+      expanded = type_vars.dup
+      free_vars = {} of String => TypeVar
+      self.type_vars.each_with_index do |name, i|
+        if i < expanded.size
+          free_vars[name] = expanded[i]
+        else
+          default = type_var_defaults[i]?
+          break unless default
+          resolved = lookup_type(default, free_vars: free_vars)
+          expanded << resolved
+          free_vars[name] = resolved
+        end
+      end
+      expanded
+    end
+
     def instantiate(type_vars)
+      if type_vars.size < self.type_vars.size && type_var_defaults_count > 0 && !splat_index
+        type_vars = expand_type_var_defaults(type_vars)
+      end
+
       if (instance = generic_types[type_vars]?)
         return instance
       end

@@ -1375,6 +1375,36 @@ module Crystal
     end
   end
 
+  # A type parameter declared on a generic `class` or `module`, e.g. `T` or `V = String` in `class Foo(T, V = String); end`.
+  class TypeParam < ASTNode
+    property name : String
+    property default_value : ASTNode?
+    # Reserved for per-type-parameter restrictions; always nil for now.
+    property restriction : ASTNode?
+
+    def initialize(@name : String, @default_value : ASTNode? = nil, @restriction : ASTNode? = nil)
+    end
+
+    def accept_children(visitor)
+      @default_value.try &.accept visitor
+      @restriction.try &.accept visitor
+    end
+
+    def clone_without_location
+      TypeParam.new @name, @default_value.clone, @restriction.clone
+    end
+
+    def_equals_and_hash name, default_value, restriction
+
+    def pretty_print(pp) : Nil
+      pp_type(pp, "TypeParam[", "]") do
+        name.pretty_print(pp)
+        pp_option(pp, default_value)
+        pp_option(pp, restriction)
+      end
+    end
+  end
+
   # The Proc notation in the type grammar:
   #
   #    input1, input2, ..., inputN -> output
@@ -1942,7 +1972,7 @@ module Crystal
     property name : Path
     property body : ASTNode
     property superclass : ASTNode?
-    property type_vars : Array(String)?
+    property type_vars : Array(TypeParam)?
     property name_location : Location?
     property doc : String?
     property splat_index : Int32?
@@ -1988,7 +2018,7 @@ module Crystal
   class ModuleDef < ASTNode
     property name : Path
     property body : ASTNode
-    property type_vars : Array(String)?
+    property type_vars : Array(TypeParam)?
     property splat_index : Int32?
     property name_location : Location?
     property doc : String?

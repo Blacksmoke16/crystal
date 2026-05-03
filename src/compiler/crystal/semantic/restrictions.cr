@@ -1227,13 +1227,22 @@ module Crystal
         return self
       end
 
-      if other.type_vars.size != generic_type.type_vars.size
-        other.wrong_number_of "type vars", generic_type, other.type_vars.size, generic_type.type_vars.size
+      defaulted = generic_type.type_var_defaults_count
+      max_needed = generic_type.type_vars.size
+      min_needed = max_needed - defaulted
+      if other.type_vars.size < min_needed || other.type_vars.size > max_needed
+        expected = defaulted > 0 ? "#{min_needed}..#{max_needed}" : max_needed.to_s
+        other.wrong_number_of "type vars", generic_type, other.type_vars.size, expected
       end
 
       i = 0
       type_vars.each do |name, type_var|
-        other_type_var = other.type_vars[i]
+        other_type_var = other.type_vars[i]?
+        # If the restriction omits a type var that has a default, treat it as a wildcard match.
+        unless other_type_var
+          i += 1
+          next
+        end
         restricted = restrict_type_var(type_var, other_type_var, context)
         return nil unless restricted
         i += 1

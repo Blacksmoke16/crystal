@@ -1428,6 +1428,21 @@ module Crystal::Macros
   class Or < BinaryOp
   end
 
+  # A type parameter declared on a generic class or module, e.g. `T` or `V = String` in `class Foo(T, V = String); end`.
+  class TypeParam < ASTNode
+    # Returns the name of this type parameter.
+    def name : MacroId
+    end
+
+    # Returns the default value of this type parameter, or `Nop` if none.
+    def default_value : ASTNode | Nop
+    end
+
+    # Reserved for per-type-parameter restrictions; currently always returns `Nop`.
+    def restriction : ASTNode | Nop
+    end
+  end
+
   # A def argument.
   class Arg < ASTNode
     # Returns the last `Annotation` with the given `type`
@@ -1873,6 +1888,12 @@ module Crystal::Macros
     def type_vars : ArrayLiteral
     end
 
+    # Returns an array of `TypeParam` nodes for this type definition's generic type parameters, exposing each parameter's name and default value.
+    #
+    # On a non-generic type definition, returns an empty array.
+    def type_params : ArrayLiteral(TypeParam)
+    end
+
     # Returns the splat index of this type definition's generic type parameters.
     #
     # Returns `nil` if this type definition isn't generic or if there isn't a
@@ -1921,6 +1942,12 @@ module Crystal::Macros
     #
     # On a non-generic type definition, returns an empty array.
     def type_vars : ArrayLiteral
+    end
+
+    # Returns an array of `TypeParam` nodes for this type definition's generic type parameters, exposing each parameter's name and default value.
+    #
+    # On a non-generic type definition, returns an empty array.
+    def type_params : ArrayLiteral(TypeParam)
     end
 
     # Returns the splat index of this type definition's generic type parameters.
