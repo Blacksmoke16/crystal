@@ -1604,4 +1604,30 @@ describe "Block inference" do
       Foo.new.bar(1_i64) { "hi" }
       CRYSTAL
   end
+
+  it "doesn't type the targets of a call with a block again when the receiver's hierarchy grows" do
+    result = semantic(<<-CRYSTAL)
+      abstract class Foo
+        abstract def each(& : Int32 ->)
+      end
+
+      class Bar(T) < Foo
+        def each(& : Int32 ->)
+          yield 1
+        end
+      end
+
+      foo = Bar(Int32).new.as(Foo)
+      foo.each { |x| x }
+      Bar(Char).new
+      Bar(Bool).new
+      CRYSTAL
+    node = result.node.as(Expressions)
+    call = node.expressions[-3].as(Call)
+    call.target_defs.should_not(be_nil).size.should eq(3)
+
+    block = call.block.should_not be_nil
+    block.binder.should_not(be_nil).@yields.size.should eq(3)
+    block.args.first.dependencies.size.should eq(1)
+  end
 end
