@@ -376,6 +376,7 @@ class Crystal::Call
     block = @block
 
     typed_defs = Array(Def).new(matches.size)
+    reused_block_def_instance = false
 
     matches.each do |match|
       check_visibility match
@@ -408,6 +409,7 @@ class Crystal::Call
         typed_def = def_instance_owner.lookup_def_instance def_instance_key
       elsif cache_in_call
         typed_def = @block_def_instances.try &.[{def_instance_owner, def_instance_key}]?
+        reused_block_def_instance = true if typed_def
       end
 
       unless typed_def
@@ -457,6 +459,11 @@ class Crystal::Call
 
       typed_defs << typed_def
     end
+
+    # `match_block_arg` assigns the types of block parameters that unpack a yielded tuple directly, and
+    # typing a target's yields merges them back with what every other target yields. Reused targets
+    # aren't typed again, so merge them here.
+    block.binder.try &.update if block && reused_block_def_instance
 
     typed_defs
   end

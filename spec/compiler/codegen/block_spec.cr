@@ -1661,4 +1661,22 @@ describe "Code gen: block" do
       end
       CRYSTAL
   end
+
+  it "unpacks the tuples yielded by every target of a call whose receiver's type grows" do
+    run(<<-CRYSTAL).to_string.should eq("a1b2.0")
+      require "prelude"
+
+      ints = {"a" => 1}
+      floats = {"b" => 2.0}
+      str = ""
+
+      {ints, floats}.each do |hash|
+        hash.each do |key, value|
+          str += key + value.to_s
+        end
+      end
+
+      str
+      CRYSTAL
+  end
 end
