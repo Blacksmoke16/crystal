@@ -14,7 +14,8 @@ class Crystal::Call
   # Typed defs from earlier lookups of this call that can't be cached in their owner,
   # because they yield to this call's block. A call is looked up again whenever the
   # hierarchy of its receiver grows (see `SubclassObservable`), and reusing them avoids
-  # typing every target again each time.
+  # typing every target again each time. Defs whose typing expanded a macro aren't
+  # kept, since the macro could expand differently now.
   @block_def_instances : Hash({DefInstanceContainer, DefInstanceKey}, Def)?
 
   # See `#block_yield_vars`.
@@ -414,11 +415,7 @@ class Crystal::Call
 
       unless typed_def
         typed_def, typed_def_args = prepare_typed_def_with_args(match.def, match_owner, lookup_self_type, match.arg_types, block_arg_type, named_args_types)
-        if use_cache
-          def_instance_owner.add_def_instance(def_instance_key, typed_def)
-        elsif cache_in_call
-          (@block_def_instances ||= {} of {DefInstanceContainer, DefInstanceKey} => Def)[{def_instance_owner, def_instance_key}] = typed_def
-        end
+        def_instance_owner.add_def_instance(def_instance_key, typed_def) if use_cache
 
         if typed_def_return_type = typed_def.return_type
           check_return_type(typed_def, typed_def_return_type, match, match_owner)
@@ -454,6 +451,10 @@ class Crystal::Call
               visitor.bind_initialize_instance_vars(owner)
             end
           end
+        end
+
+        if cache_in_call && !typed_def.expanded_macros?
+          (@block_def_instances ||= {} of {DefInstanceContainer, DefInstanceKey} => Def)[{def_instance_owner, def_instance_key}] = typed_def
         end
       end
 
