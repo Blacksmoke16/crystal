@@ -453,6 +453,12 @@ class Crystal::Call
           end
         end
 
+        # A target that isn't cached in its owner is typed again whenever the def
+        # holding this call is, so its macros expand again along with it
+        if !use_cache && typed_def.expanded_macros?
+          parent_visitor.typed_def?.try &.expanded_macros = true
+        end
+
         if cache_in_call && !typed_def.expanded_macros?
           (@block_def_instances ||= {} of {DefInstanceContainer, DefInstanceKey} => Def)[{def_instance_owner, def_instance_key}] = typed_def
         end

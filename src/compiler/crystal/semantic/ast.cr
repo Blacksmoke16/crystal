@@ -150,9 +150,11 @@ module Crystal
     property? self_closured = false
     property? captured_block = false
 
-    # `true` if typing this def expanded a macro. A macro's output can depend
-    # on the types known when it's expanded (such as a type's subclasses), so
-    # typing the def again later can give a different result.
+    # `true` if typing this def expanded a macro, either directly or in a def it
+    # calls that isn't cached in its owner (such as one it passes a block to).
+    # A macro's output can depend on the types known when it's expanded (such
+    # as a type's subclasses), so typing the def again later can give a
+    # different result.
     property? expanded_macros = false
 
     # `true` if this def has the `@[NoInline]` annotation

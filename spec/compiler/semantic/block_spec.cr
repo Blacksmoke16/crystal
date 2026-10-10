@@ -1684,4 +1684,33 @@ describe "Block inference" do
       use Bar(Char).new.as(Foo)
       CRYSTAL
   end
+
+  it "types the targets of a call with a block again if a call with a block in them expanded a macro, when the receiver's hierarchy grows" do
+    assert_error <<-CRYSTAL, "argument #1 of yield expected to be Int32, not String"
+      abstract class Foo
+        abstract def each(& : Int32 ->)
+      end
+
+      def yield_value(value : U, & : Int32 ->) forall U
+        {% if U.type_vars.first == Int32 && Foo.subclasses.size > 2 %}
+          yield "wrong"
+        {% else %}
+          yield 1
+        {% end %}
+      end
+
+      class Bar(T) < Foo
+        def each(& : Int32 ->)
+          yield_value(self) { |x| yield x }
+        end
+      end
+
+      def use(foo : Foo)
+        foo.each { |x| x }
+      end
+
+      use Bar(Int32).new.as(Foo)
+      use Bar(Char).new.as(Foo)
+      CRYSTAL
+  end
 end
