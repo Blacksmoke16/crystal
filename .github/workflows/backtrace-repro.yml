@@ -3,7 +3,8 @@
 #
 # `repro` compares runners and compiler releases.
 # `stdlib-bisect` keeps the nightly compiler fixed and swaps the stdlib, which
-# contains the backtrace decoder, to isolate the commit that broke it.
+# contains the backtrace decoder, to isolate the commit that broke it and to
+# test candidate fixes.
 name: Backtrace repro
 
 on: push
@@ -46,6 +47,8 @@ jobs:
           # #17410 DWARF: build function names table for fast binary search
           - { name: "766806220", ref: 76680622067aea61f22445b4f20697dbf3754c8d }
           - { name: master, ref: master }
+          # #17614 Look up the call instruction for backtrace frames
+          - { name: pr-17614, ref: refs/pull/17614/head }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
