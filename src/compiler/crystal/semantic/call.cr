@@ -14,8 +14,9 @@ class Crystal::Call
   # Typed defs from earlier lookups of this call that can't be cached in their owner,
   # because they yield to this call's block. A call is looked up again whenever the
   # hierarchy of its receiver grows (see `SubclassObservable`), and reusing them avoids
-  # typing every target again each time. Defs whose typing expanded a macro aren't
-  # kept, since the macro could expand differently now.
+  # typing every target again each time. Defs whose typing depends on when they're
+  # typed aren't kept, since typing them now could give a different result (see
+  # `Def#depends_on_typing_time?`).
   @block_def_instances : Hash({DefInstanceContainer, DefInstanceKey}, Def)?
 
   # See `#block_yield_vars`.
@@ -454,12 +455,12 @@ class Crystal::Call
         end
 
         # A target that isn't cached in its owner is typed again whenever the def
-        # holding this call is, so its macros expand again along with it
-        if !use_cache && typed_def.expanded_macros?
-          parent_visitor.typed_def?.try &.expanded_macros = true
+        # holding this call is, so that def depends on when it's typed as well
+        if !use_cache && typed_def.depends_on_typing_time?
+          parent_visitor.typed_def?.try &.depends_on_typing_time = true
         end
 
-        if cache_in_call && !typed_def.expanded_macros?
+        if cache_in_call && !typed_def.depends_on_typing_time?
           (@block_def_instances ||= {} of {DefInstanceContainer, DefInstanceKey} => Def)[{def_instance_owner, def_instance_key}] = typed_def
         end
       end

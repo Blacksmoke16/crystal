@@ -1679,4 +1679,56 @@ describe "Code gen: block" do
       str
       CRYSTAL
   end
+
+  it "types the targets of a call with a block again if they used typeof, when the receiver's hierarchy grows" do
+    run(<<-CRYSTAL).to_i.should eq(16)
+      require "prelude"
+
+      abstract class Foo
+      end
+
+      class Bar(T) < Foo
+        def each(&)
+          x = uninitialized typeof(yield T.zero)
+          sizeof(typeof(x))
+        end
+      end
+
+      foo = Bar(Int32).new.as(Foo)
+      size = foo.each { |x| x }
+      Bar(Int64).new
+      size
+      CRYSTAL
+  end
+
+  it "types the targets of a call with a block again if they used typeof, when the block's type grows" do
+    run(<<-CRYSTAL).to_string.should eq("9223372036854775807")
+      require "prelude"
+
+      abstract class Foo
+      end
+
+      class Bar(T) < Foo
+        def value
+          T::MAX
+        end
+
+        def each(&)
+          value = yield
+          if value.is_a?(typeof(yield))
+            value
+          else
+            raise "unreachable"
+          end
+        end
+      end
+
+      def use(foo : Foo, other : Foo)
+        foo.each { other.value }
+      end
+
+      use(Bar(Int32).new.as(Foo), Bar(Int32).new.as(Foo))
+      use(Bar(Int32).new.as(Foo), Bar(Int64).new.as(Foo)).to_s
+      CRYSTAL
+  end
 end
