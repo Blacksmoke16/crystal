@@ -1,0 +1,66 @@
+# Investigates backtraces missing file:line on x86_64-darwin with Crystal
+# nightlies (athena console specs render "In n/a line n/a:" on macos-15-intel).
+#
+# `repro` compares runners and compiler releases.
+# `stdlib-bisect` keeps the nightly compiler fixed and swaps the stdlib, which
+# contains the backtrace decoder, to isolate the commit that broke it.
+name: Backtrace repro
+
+on: push
+
+jobs:
+  repro:
+    name: "${{ matrix.runs-on }} / crystal ${{ matrix.crystal }}"
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [macos-15-intel, macos-26-intel, macos-15]
+        crystal: ["1.21.0", nightly]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: ${{ matrix.crystal }}
+      - run: ./run-sample.sh
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: repro-${{ matrix.runs-on }}-${{ matrix.crystal }}
+          path: build/
+
+  stdlib-bisect:
+    name: "macos-15-intel / nightly compiler / stdlib ${{ matrix.stdlib.name }}"
+    runs-on: macos-15-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        stdlib:
+          - { name: "1.21.0", ref: "1.21.0" }
+          # parent of #17283
+          - { name: ad20ec3c5, ref: ad20ec3c5ffdad824db21e58ee6ee0707b48a277 }
+          # #17283 DWARF: scan sections instead of building large tables
+          - { name: 2ba606ed6, ref: 2ba606ed6eef1bffabea8f8220380aaef9ca3922 }
+          # #17285 Keep decoded backtrace lines into LRU cache
+          - { name: 8dec18f96, ref: 8dec18f96f4fefca7cfc09e4cf5d2b63b29de73a }
+          # #17410 DWARF: build function names table for fast binary search
+          - { name: "766806220", ref: 76680622067aea61f22445b4f20697dbf3754c8d }
+          - { name: master, ref: master }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: crystal-lang/crystal
+          ref: ${{ matrix.stdlib.ref }}
+          path: stdlib
+      - uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: nightly
+      - run: ./run-sample.sh
+        env:
+          CRYSTAL_PATH: lib:${{ github.workspace }}/stdlib/src
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stdlib-bisect-${{ matrix.stdlib.name }}
+          path: build/
