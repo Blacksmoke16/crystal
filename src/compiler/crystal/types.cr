@@ -1055,14 +1055,15 @@ module Crystal
     end
   end
 
-  # Temporary type to recompute calls when a subclass is added to a type
-  # hierarchy. This shouldn't be needed, because the type hierarchy is
-  # now computed in a first pass, but for generic types, instantiations
-  # are considered as kind of subclasses, and calls must be recomputed
-  # to take them into account (but this should change in the future).
+  # Temporary type to recompute calls, and nodes that narrow virtual types,
+  # when a subclass is added to a type hierarchy. This shouldn't be needed,
+  # because the type hierarchy is now computed in a first pass, but for
+  # generic types, instantiations are considered as kind of subclasses, and
+  # calls must be recomputed to take them into account (but this should
+  # change in the future).
   module SubclassObservable
-    def add_subclass_observer(observer)
-      observers = (@subclass_observers ||= [] of Call)
+    def add_subclass_observer(observer : SubclassObserver)
+      observers = (@subclass_observers ||= [] of SubclassObserver)
       observers << observer
     end
 
@@ -1071,7 +1072,61 @@ module Crystal
     end
 
     def notify_subclass_added
-      @subclass_observers.try &.dup.each &.on_new_subclass
+      observers = @subclass_observers
+      return unless observers
+
+      # Notifying an observer can orphan others (a call that looks up its
+      # targets again replaces the defs it typed), so check each one right
+      # before notifying it
+      observers.dup.each do |observer|
+        observer.on_new_subclass unless observer.orphaned?
+      end
+      observers.reject! &.orphaned?
+    end
+  end
+
+  # Something that a `SubclassObservable` notifies when a subclass is added
+  # to its hierarchy.
+  module SubclassObserver
+    abstract def on_new_subclass
+
+    # Returns `true` if this observer is in code that's no longer part of the
+    # program, so it doesn't need to be notified anymore.
+    def orphaned? : Bool
+      false
+    end
+  end
+
+  # A node whose type is computed by narrowing a type, as in `x.is_a?(T)` or
+  # `x.as(T)`. Narrowing a virtual type only considers the subtypes that exist
+  # at that moment, so the node observes the hierarchy of every virtual type it
+  # narrows and computes its type again when a generic instance joins it.
+  module NarrowedHierarchyObserver
+    include SubclassObserver
+
+    @observed_hierarchies : Array(Type)?
+
+    # The def this node is in, if any
+    property typed_def : Def?
+
+    def orphaned? : Bool
+      !!@typed_def.try &.orphaned?
+    end
+
+    def observe_hierarchies_of(type : Type) : Nil
+      case type
+      when VirtualType
+        base_type = type.base_type
+        return unless base_type.is_a?(SubclassObservable)
+
+        observed_hierarchies = @observed_hierarchies ||= [] of Type
+        return if observed_hierarchies.any? &.same?(base_type)
+
+        base_type.add_subclass_observer(self)
+        observed_hierarchies << base_type
+      when UnionType
+        type.union_types.each { |union_type| observe_hierarchies_of(union_type) }
+      end
     end
   end
 

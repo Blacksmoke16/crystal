@@ -3,6 +3,8 @@ require "../types"
 require "./type_lookup"
 
 class Crystal::Call
+  include SubclassObserver
+
   property! scope : Type
   property with_scope : Type?
   property! parent_visitor : MainVisitor
@@ -80,7 +82,12 @@ class Crystal::Call
 
     block = @block
 
-    unbind_from @target_defs if @target_defs
+    if target_defs = @target_defs
+      target_defs.each do |target_def|
+        target_def.replaced = true if target_def.exclusive_call.same?(self)
+      end
+      unbind_from target_defs
+    end
     unbind_from block.break if block
 
     @target_defs = nil
@@ -398,7 +405,11 @@ class Crystal::Call
 
       unless typed_def
         typed_def, typed_def_args = prepare_typed_def_with_args(match.def, match_owner, lookup_self_type, match.arg_types, block_arg_type, named_args_types)
-        def_instance_owner.add_def_instance(def_instance_key, typed_def) if use_cache
+        if use_cache
+          def_instance_owner.add_def_instance(def_instance_key, typed_def)
+        else
+          typed_def.exclusive_call = self
+        end
 
         if typed_def_return_type = typed_def.return_type
           check_return_type(typed_def, typed_def_return_type, match, match_owner)

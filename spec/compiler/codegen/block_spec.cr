@@ -1661,4 +1661,36 @@ describe "Code gen: block" do
       end
       CRYSTAL
   end
+
+  it "restricts yielded virtual generic type to generic instances added to its hierarchy later" do
+    run(<<-CRYSTAL).to_i.should eq(12)
+      abstract class Base(T)
+      end
+
+      class Good(T, U) < Base(T)
+        def value
+          sizeof(U)
+        end
+      end
+
+      class Holder
+        def each(&)
+          v = yield
+          if v.is_a?(Good)
+            v.value
+          else
+            0
+          end
+        end
+      end
+
+      def use(other : Base(Int32))
+        Holder.new.each { other }
+      end
+
+      a = use(Good(Int32, Int32).new.as(Base(Int32)))
+      b = use(Good(Int32, Int64).new.as(Base(Int32)))
+      a &+ b
+      CRYSTAL
+  end
 end

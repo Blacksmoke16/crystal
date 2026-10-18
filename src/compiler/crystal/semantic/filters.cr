@@ -1,5 +1,7 @@
 module Crystal
   class TypeFilteredNode < ASTNode
+    include NarrowedHierarchyObserver
+
     def initialize(@filter : TypeFilter, @node : ASTNode)
       @dependencies.push @node
       node.add_observer self
@@ -10,8 +12,13 @@ module Crystal
       from_type = from.try &.type?
 
       if from_type
+        observe_hierarchies_of(from_type)
         self.type = @filter.apply(from_type)
       end
+    end
+
+    def on_new_subclass
+      update(@node)
     end
 
     def clone_without_location

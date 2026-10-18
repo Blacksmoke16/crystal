@@ -169,4 +169,29 @@ describe "Code gen: nilable cast" do
       a.as?(Gen).foo
       CRYSTAL
   end
+
+  it "casts virtual generic type to generic instances added to its hierarchy later" do
+    run(<<-CRYSTAL).to_i.should eq(12)
+      abstract class Base(T)
+      end
+
+      class Good(T, U) < Base(T)
+        def value
+          sizeof(U)
+        end
+      end
+
+      def foo(value : Base(Int32))
+        if good = value.as?(Good)
+          good.value
+        else
+          0
+        end
+      end
+
+      a = foo(Good(Int32, Int32).new.as(Base(Int32)))
+      b = foo(Good(Int32, Int64).new.as(Base(Int32)))
+      a &+ b
+      CRYSTAL
+  end
 end

@@ -256,4 +256,54 @@ describe "Codegen: responds_to?" do
       MyGeneric(String).responds_to? :hallo
       CRYSTAL
   end
+
+  it "restricts virtual generic type to generic instances added to its hierarchy later" do
+    run(<<-CRYSTAL).to_i.should eq(12)
+      abstract class Base(T)
+      end
+
+      class Good(T, U) < Base(T)
+        def value
+          sizeof(U)
+        end
+      end
+
+      def foo(value : Base(Int32))
+        if value.responds_to?(:value)
+          value.value
+        else
+          0
+        end
+      end
+
+      a = foo(Good(Int32, Int32).new.as(Base(Int32)))
+      b = foo(Good(Int32, Int64).new.as(Base(Int32)))
+      a &+ b
+      CRYSTAL
+  end
+
+  it "restricts virtual type to generic instances added to its hierarchy later" do
+    run(<<-CRYSTAL).to_i.should eq(12)
+      abstract class Base
+      end
+
+      class Good(U) < Base
+        def value
+          sizeof(U)
+        end
+      end
+
+      def foo(value : Base)
+        if value.responds_to?(:value)
+          value.value
+        else
+          0
+        end
+      end
+
+      a = foo(Good(Int32).new.as(Base))
+      b = foo(Good(Int64).new.as(Base))
+      a &+ b
+      CRYSTAL
+  end
 end

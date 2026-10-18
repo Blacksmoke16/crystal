@@ -1604,4 +1604,37 @@ describe "Block inference" do
       Foo.new.bar(1_i64) { "hi" }
       CRYSTAL
   end
+
+  it "stops notifying narrowing nodes in block targets that a call replaced" do
+    result = semantic(<<-CRYSTAL)
+      abstract class Coll
+        abstract def each(& : Int32 ->)
+      end
+
+      class List(T) < Coll
+        def each(& : Int32 ->)
+          c = self.as(Coll)
+          if c.responds_to?(:size_of_t)
+            yield c.size_of_t
+          end
+        end
+
+        def size_of_t
+          sizeof(T)
+        end
+      end
+
+      def total(coll : Coll)
+        coll.each { |x| x }
+      end
+
+      total List(Int32).new.as(Coll)
+      total List(Int64).new.as(Coll)
+      total List(Int8).new.as(Coll)
+      CRYSTAL
+
+    observers = result.program.types["Coll"].as(NonGenericClassType).@subclass_observers.not_nil!
+    observers.any?(TypeFilteredNode).should be_true
+    observers.none?(&.orphaned?).should be_true
+  end
 end

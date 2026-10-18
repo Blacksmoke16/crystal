@@ -150,6 +150,27 @@ module Crystal
     property? self_closured = false
     property? captured_block = false
 
+    # The call this def was typed for, if it isn't cached in its owner (as
+    # when the call has a block). Only that call uses it.
+    property exclusive_call : Call?
+
+    # `true` once `exclusive_call` looks up its targets again and stops using
+    # this def.
+    property? replaced = false
+
+    # Returns `true` if this def is no longer part of the program, because it
+    # or the def containing its `exclusive_call` was replaced.
+    def orphaned? : Bool
+      typed_def = self
+      while typed_def
+        return true if typed_def.replaced?
+        call = typed_def.exclusive_call
+        return false unless call
+        typed_def = call.parent_visitor?.try &.typed_def?
+      end
+      false
+    end
+
     # `true` if this def has the `@[NoInline]` annotation
     property? no_inline = false
 

@@ -396,4 +396,25 @@ describe "Semantic: cast" do
       end
       CRYSTAL
   end
+
+  it "casts virtual generic type to generic instances added to its hierarchy later" do
+    assert_type(<<-CRYSTAL) { union_of(int32, int64) }
+      abstract class Base(T)
+      end
+
+      class Good(T, U) < Base(T)
+        def value
+          x = uninitialized U
+          x
+        end
+      end
+
+      def foo(value : Base(Int32))
+        value.as(Good).value
+      end
+
+      foo(Good(Int32, Int32).new.as(Base(Int32)))
+      foo(Good(Int32, Int64).new.as(Base(Int32)))
+      CRYSTAL
+  end
 end

@@ -1946,6 +1946,7 @@ module Crystal
       end
       @in_type_args -= 1
 
+      node.typed_def = @typed_def
       node.obj.add_observer node
       node.update
 
@@ -2361,7 +2362,9 @@ module Crystal
       filters.try &.each do |name, filter|
         existing_var = @vars[name]
         filtered_var = MetaVar.new(name)
-        filtered_var.bind_to(existing_var.filtered_by(yield filter))
+        filtered_node = existing_var.filtered_by(yield filter)
+        filtered_node.typed_def = @typed_def
+        filtered_var.bind_to(filtered_node)
         @vars[name] = filtered_var
       end
     end
