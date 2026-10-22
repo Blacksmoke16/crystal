@@ -38,11 +38,15 @@ module Crystal
     # `CounterKind::Add`.
     record Expression, lhs : Counter, rhs : Counter
 
-    # A code region in the file at index *file_id* of a function's file
-    # table. Lines and columns are 1-based; *column_end* is exclusive.
+    # A region in the file at index *file_id* of a function's file table.
+    # Lines and columns are 1-based; *column_end* is exclusive.
+    #
+    # A gap region covers source between code, such as between a condition
+    # and the body of a branch. It doesn't count as executed code of the
+    # lines it covers, but it sets the count of the lines that follow it.
     record Region, counter : Counter, file_id : Int32,
       line_start : Int32, column_start : Int32,
-      line_end : Int32, column_end : Int32
+      line_end : Int32, column_end : Int32, gap : Bool = false
 
     # Returns the hash `llvm-cov` uses to identify function names and
     # filenames tables: the first 8 bytes of the MD5 digest, as a
@@ -96,7 +100,7 @@ module Crystal
           write_uleb128(io, region.line_start - previous_line)
           write_uleb128(io, region.column_start)
           write_uleb128(io, region.line_end - region.line_start)
-          write_uleb128(io, region.column_end)
+          write_uleb128(io, region.gap ? (region.column_end.to_u64 | 1_u64 << 31) : region.column_end)
           previous_line = region.line_start
         end
       end

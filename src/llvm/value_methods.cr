@@ -35,6 +35,11 @@ module LLVM::ValueMethods
     end
   end
 
+  # Returns `true` if no instruction or constant uses this value.
+  def use_empty? : Bool
+    LibLLVM.get_first_use(self).null?
+  end
+
   def constant?
     LibLLVM.is_constant(self) != 0
   end

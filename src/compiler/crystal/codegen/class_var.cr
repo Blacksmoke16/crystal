@@ -135,6 +135,7 @@ class Crystal::CodeGenVisitor
 
             alloca_vars initializer.meta_vars
 
+            emit_initializer_coverage_counter("#{class_var.owner}#{class_var.name}", node.location, node) if @coverage
             request_value(node)
 
             node_type = node.type

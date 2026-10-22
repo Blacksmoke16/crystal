@@ -699,6 +699,9 @@ class Crystal::Command
     opts.on("--no-debug", "Skip any symbolic debug info") do
       compiler.debug = Crystal::Debug::None
     end
+    opts.on("--coverage", "Instrument for source-based code coverage with llvm-cov") do
+      compiler.coverage = true
+    end
     opts.on("-D FLAG", "--define FLAG", "Define a compile-time flag") do |flag|
       compiler.flags << flag
     end

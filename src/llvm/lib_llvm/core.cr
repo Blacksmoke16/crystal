@@ -108,6 +108,7 @@ lib LibLLVM
   fun get_value_kind = LLVMGetValueKind(val : ValueRef) : LLVM::Value::Kind
   fun get_value_name2 = LLVMGetValueName2(val : ValueRef, length : SizeT*) : Char*
   fun set_value_name2 = LLVMSetValueName2(val : ValueRef, name : Char*, name_len : SizeT)
+  fun get_first_use = LLVMGetFirstUse(val : ValueRef) : UseRef
   fun dump_value = LLVMDumpValue(val : ValueRef)
   fun print_value_to_string = LLVMPrintValueToString(val : ValueRef) : Char*
   fun is_constant = LLVMIsConstant(val : ValueRef) : Bool

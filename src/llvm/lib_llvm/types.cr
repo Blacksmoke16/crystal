@@ -19,4 +19,5 @@ lib LibLLVM
   type AttributeRef = Void*
   type DbgRecordRef = Void*
   type ComdatRef = Void*
+  type UseRef = Void*
 end

@@ -135,6 +135,7 @@ class Crystal::CodeGenVisitor
       set_current_debug_location const.locations.try &.first? if @debug.line_numbers?
 
       alloca_vars const.fake_def.try(&.vars), const.fake_def
+      emit_initializer_coverage_counter(const.to_s, const.locations.try(&.first?), const.value) if @coverage
       request_value(const.value)
     end
 
@@ -189,6 +190,7 @@ class Crystal::CodeGenVisitor
 
           alloca_vars const.fake_def.try(&.vars), const.fake_def
 
+          emit_initializer_coverage_counter(const.to_s, const.locations.try(&.first?), const.value) if @coverage
           request_value(const.value)
 
           const_type = const.value.type

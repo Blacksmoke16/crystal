@@ -36,6 +36,14 @@ describe Crystal::CoverageMapping do
           1, 5, 3, 1, 0, 2])
     end
 
+    it "encodes a gap region (same as Clang)" do
+      region = Crystal::CoverageMapping::Region.new(
+        counter: Crystal::CoverageMapping::Counter.reference(1), file_id: 0,
+        line_start: 1, column_start: 26, line_end: 1, column_end: 27, gap: true)
+      Crystal::CoverageMapping.encode_function([1], [] of Crystal::CoverageMapping::Expression, [region]).should eq(
+        Bytes[1, 1, 0, 1, 5, 1, 26, 0, 0x9B, 0x80, 0x80, 0x80, 0x08])
+    end
+
     it "encodes expressions" do
       expression = Crystal::CoverageMapping::Expression.new(
         Crystal::CoverageMapping::Counter.reference(0), Crystal::CoverageMapping::Counter.reference(1))

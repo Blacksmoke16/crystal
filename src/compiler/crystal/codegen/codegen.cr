@@ -373,6 +373,8 @@ module Crystal
         set_current_debug_location Location.new(@program.filename || "(no name)", 1, 1)
       end
 
+      build_top_level_coverage(@node) if @coverage
+
       once_init
       initialize_simple_constants
 
@@ -525,7 +527,14 @@ module Crystal
     end
 
     def visit_any(node)
-      !@builder.end
+      return false if @builder.end
+
+      emit_coverage_entry_counter(node) if @coverage
+      true
+    end
+
+    def end_visit_any(node)
+      emit_coverage_continuation_counter(node) if @coverage && !@builder.end
     end
 
     def type
