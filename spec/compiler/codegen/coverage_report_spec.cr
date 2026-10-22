@@ -174,6 +174,44 @@ describe "Code gen: coverage report" do
     check(false, false, true)
     CRYSTAL
 
+  # The values of a `when` are evaluated, even if they span lines
+  assert_coverage <<-CRYSTAL, {1 => 2, 2 => 2, 3 => "1/2", 4 => "1/2", 5 => 0, 7 => 2, 11 => 1, 12 => 1}
+    def kind(x)
+      case x
+      when Int32,
+           Float64
+        1
+      else
+        2
+      end
+    end
+
+    kind(true)
+    kind('a')
+    CRYSTAL
+
+  # The unreachable `else` of an exhaustive `case` has no source of its own
+  # Enum members map their predicate methods, `lossy?` and `lossless?`
+  assert_coverage <<-CRYSTAL, {2 => 1, 3 => 2, 6 => 2, 7 => 2, 8 => "2/2", 9 => 1, 10 => "1/2", 11 => 1, 13 => 2, 16 => 1, 17 => 1}, prelude: "prelude"
+    enum Format
+      Lossy
+      Lossless
+    end
+
+    def extract(format)
+      w, h = case format
+             in .lossless?
+               {1, 2}
+             in .lossy?
+               {3, 4}
+             end
+      w + h
+    end
+
+    extract(Format::Lossless)
+    extract(Format::Lossy)
+    CRYSTAL
+
   # Each instance decides the type at compile time, but the instances add up
   assert_coverage <<-CRYSTAL, {1 => 3, 2 => 3, 3 => "2/2", 4 => 1, 5 => "2/2", 6 => 1, 8 => 1, 12 => 1, 13 => 1, 14 => 1}
     def kind(x)
@@ -199,6 +237,15 @@ describe "Code gen: coverage report" do
 
     foo(1)
     foo(1.5)
+    CRYSTAL
+
+  # The loop is left with `break`, never because its condition is false
+  assert_coverage <<-CRYSTAL, {1 => 1, 2 => "1/2", 3 => 2, 4 => "2/2"}
+    i = 0
+    while i < 10
+      i &+= 1
+      break if i == 2
+    end
     CRYSTAL
 
   # `while true` has no condition to report
@@ -307,6 +354,15 @@ describe "Code gen: coverage report" do
     foo = Foo.new
     foo.x
     foo.y = 3
+    CRYSTAL
+
+  # The expansion of a literal is a single statement
+  assert_coverage <<-CRYSTAL, {1 => 1, 2 => 1, 3 => 1, 5 => 1}, prelude: "prelude"
+    x = 1
+    {
+      "a" => [1, 2],
+    }
+    x
     CRYSTAL
 
   assert_coverage <<-CRYSTAL, {1 => 1, 2 => 1, 5 => 1, 6 => 1}, prelude: "prelude"

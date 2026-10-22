@@ -12,6 +12,7 @@ end
 private def region_strings(function)
   function.regions.map do |region|
     location = "#{region.line_start}:#{region.column_start}-#{region.line_end}:#{region.column_end}"
+    location = "#{function.filenames[region.file_id]}:#{location}" unless region.file_id == 0
     case region.kind
     in .code?    then "#{counter_string(region.counter)} #{location}"
     in .gap?     then "#{counter_string(region.counter)} #{location} gap"
@@ -28,9 +29,8 @@ private def expression_strings(function)
 end
 
 private def new_builder(function, source_lines = nil)
-  entry_counters = Crystal::CoverageRegionBuilder::NodeCounters.new.compare_by_identity
-  continuation_counters = Crystal::CoverageRegionBuilder::NodeCounters.new.compare_by_identity
-  {Crystal::CoverageRegionBuilder.new(function, entry_counters, continuation_counters, source_lines), entry_counters, continuation_counters}
+  node_counters = Crystal::CoverageNodeCounters.new
+  {Crystal::CoverageRegionBuilder.new(function, node_counters, source_lines), node_counters.entry, node_counters.continuation}
 end
 
 private def build_def(a_def : Crystal::Def, source_lines = nil)
@@ -65,6 +65,34 @@ describe Crystal::CoverageRegionBuilder do
     region_strings(function).should eq(["c0 7:3-7:4"])
   end
 
+  it "maps code from other files, like templates, to those files" do
+    source = "def foo\n  a\n  b\nend"
+    parser = Crystal::Parser.new(source)
+    parser.filename = Crystal::VirtualFile.new(Crystal::Macro.new("gen"), source, Crystal::Location.new("", 7, 3))
+    a_def = parser.parse.as(Crystal::Def)
+    a_def.body.as(Crystal::Expressions).expressions.each_with_index do |statement, index|
+      statement.location = Crystal::Location.new("view.ecr", index + 3, 1)
+      statement.end_location = Crystal::Location.new("view.ecr", index + 3, 1)
+    end
+    function, _, _ = build_def(a_def)
+
+    function.filenames.should eq(["", "view.ecr"])
+    region_strings(function).should eq(["c0 7:3-7:4", "c0 view.ecr:3:1-3:2", "c0 view.ecr:4:1-4:2"])
+  end
+
+  it "maps code from source files within expanded statements" do
+    source = "def foo\n  bar(a, b)\nend"
+    parser = Crystal::Parser.new(source)
+    parser.filename = Crystal::VirtualFile.new(Crystal::Macro.new("gen"), source, Crystal::Location.new("", 7, 3))
+    a_def = parser.parse.as(Crystal::Def)
+    a_def.body.as(Crystal::Call).args[1].location = Crystal::Location.new("view.ecr", 5, 3)
+    a_def.body.as(Crystal::Call).args[1].end_location = Crystal::Location.new("view.ecr", 5, 3)
+    a_def.body = Crystal::Expressions.new([a_def.body, Crystal::Call.new("baz")] of Crystal::ASTNode)
+    function, _, _ = build_def(a_def)
+
+    region_strings(function).should eq(["c0 7:3-7:4", "c0 view.ecr:5:3-5:4"])
+  end
+
   it "counts the then branch of an if, and derives the else branch" do
     code = <<-CRYSTAL
       def foo(x)
@@ -82,7 +110,7 @@ describe Crystal::CoverageRegionBuilder do
       "c0 1:1-7:4", "skip 4:0-4:0", "skip 6:0-7:0",
       "c1/e0 2:6-2:7 branch",
       "c1 2:7-3:5 gap", "c1 3:5-3:6",
-      "e0 3:6-5:5 gap", "e0 5:5-5:6",
+      "e0 4:7-5:5 gap", "e0 5:5-5:6",
     ])
     expression_strings(function).should eq(["c0, c1"])
     entry_counters[a_def.body.as(Crystal::If).then].should eq({function, 1})
@@ -139,14 +167,15 @@ describe Crystal::CoverageRegionBuilder do
     ])
   end
 
-  it "doesn't map statements of expansions, which repeat source locations" do
+  it "maps the statements of an expansion, located at its parts, as one statement" do
     hash_literal = Crystal::Parser.parse(%({"a" => -> { 1 }})).as(Crystal::HashLiteral)
     expansion = Crystal::LiteralExpander.new(Crystal::Program.new).expand(hash_literal)
     a_def = Crystal::Def.new("foo", body: expansion).at(Crystal::Location.new("", 1, 1))
     a_def.end_location = Crystal::Location.new("", 1, 19)
     function, _, _ = build_def(a_def)
 
-    region_strings(function).should eq(["c0 1:1-1:20"])
+    # The proc literal is its own function, whose region must not be repeated
+    region_strings(function).should eq(["c0 1:1-1:20", "c0 1:1-1:18"])
   end
 
   it "counts the body of a while, and derives the condition" do
@@ -160,7 +189,7 @@ describe Crystal::CoverageRegionBuilder do
 
     region_strings(function).should eq([
       "c0 1:1-5:4", "skip 4:0-5:0",
-      "c1/c0 2:9-2:10 branch", "e0 2:9-2:10",
+      "c1/c2 2:9-2:10 branch", "e0 2:9-2:10",
       "c1 2:10-3:5 gap", "c1 3:5-3:6",
     ])
     expression_strings(function).should eq(["c0, c1"])

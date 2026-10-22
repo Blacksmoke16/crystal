@@ -11,8 +11,7 @@ class Crystal::CodeGenVisitor
   @coverage_function_names = Set(String).new
   @coverage_def_locations = Set({String, Int32, Int32}).new
   @coverage_functions_by_module = {} of LLVM::Module => Set(CoverageFunction)
-  @coverage_entry_counters = CoverageRegionBuilder::NodeCounters.new.compare_by_identity
-  @coverage_continuation_counters = CoverageRegionBuilder::NodeCounters.new.compare_by_identity
+  @coverage_node_counters = CoverageNodeCounters.new
 
   # Counts an execution of *target_def*'s body, if coverage instrumentation
   # is enabled. *mangled_name* identifies the typed def instance.
@@ -34,7 +33,7 @@ class Crystal::CodeGenVisitor
       # Typed defs that differ only in the type of their block have the
       # same name, but not necessarily the same counters
       function = CoverageFunction.new(unique_coverage_function_name(mangled_name), source_filename)
-      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters, coverage_source_lines(function.filename)).build_def(target_def)
+      CoverageRegionBuilder.new(function, @coverage_node_counters, coverage_source_lines(function.filename)).build_def(target_def)
       @coverage_def_locations << coverage_location_key(location) if location.filename.is_a?(String)
       function
     end
@@ -50,7 +49,7 @@ class Crystal::CodeGenVisitor
       next unless instrument_coverage?(filename)
 
       function = CoverageFunction.new(unique_coverage_function_name("#{name} initializer"), filename)
-      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters, coverage_source_lines(function.filename)).build_initializer(location, value)
+      CoverageRegionBuilder.new(function, @coverage_node_counters, coverage_source_lines(function.filename)).build_initializer(location, value)
 
       # A value expanded from a macro has no source to map
       function unless function.regions.empty?
@@ -79,7 +78,7 @@ class Crystal::CodeGenVisitor
       next unless instrument_coverage?(filename)
 
       function = CoverageFunction.new("__crystal_main #{filename}", filename)
-      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters, coverage_source_lines(function.filename)).build_top_level(statements)
+      CoverageRegionBuilder.new(function, @coverage_node_counters, coverage_source_lines(function.filename)).build_top_level(statements)
     end
   end
 
@@ -97,13 +96,20 @@ class Crystal::CodeGenVisitor
   end
 
   private def emit_coverage_entry_counter(node)
-    if entry = @coverage_entry_counters[node]?
+    if entry = @coverage_node_counters.entry[node]?
       emit_coverage_counter(*entry)
     end
   end
 
   private def emit_coverage_continuation_counter(node)
-    if entry = @coverage_continuation_counters[node]?
+    if entry = @coverage_node_counters.continuation[node]?
+      emit_coverage_counter(*entry)
+    end
+  end
+
+  # Counts the condition of *node* being false.
+  def emit_coverage_loop_exit_counter(node : While)
+    if entry = @coverage_node_counters.loop_exit[node]?
       emit_coverage_counter(*entry)
     end
   end
@@ -223,7 +229,7 @@ class Crystal::CodeGenVisitor
     # Used functions are named after their LLVM functions, which start with
     # `*`, so these names can't clash with them.
     function = CoverageFunction.new("#{a_def.short_reference} at #{location}", location.filename.as(String), used: false)
-    CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters, coverage_source_lines(function.filename)).build_unused_def(a_def)
+    CoverageRegionBuilder.new(function, @coverage_node_counters, coverage_source_lines(function.filename)).build_unused_def(a_def)
     unused_functions << function
   end
 
@@ -256,9 +262,11 @@ class Crystal::CodeGenVisitor
     filenames = [Dir.current]
     filename_indices = {} of String => Int32
     functions.each do |function|
-      filename_indices.put_if_absent(function.filename) do
-        filenames << function.filename
-        filenames.size - 1
+      function.filenames.each do |filename|
+        filename_indices.put_if_absent(filename) do
+          filenames << filename
+          filenames.size - 1
+        end
       end
     end
 
@@ -266,7 +274,7 @@ class Crystal::CodeGenVisitor
     filenames_hash = CoverageMapping.md5_hash(encoded_filenames)
 
     used = functions.map do |function|
-      emit_coverage_function_record(llvm_mod, function, filename_indices[function.filename], filenames_hash)
+      emit_coverage_function_record(llvm_mod, function, function.filenames.map { |filename| filename_indices[filename] }, filenames_hash)
     end
     used << emit_coverage_filenames(llvm_mod, encoded_filenames)
 
@@ -276,9 +284,9 @@ class Crystal::CodeGenVisitor
     used_var.initializer = llvm_mod.context.void_pointer.const_array(used)
   end
 
-  private def emit_coverage_function_record(llvm_mod, function, filename_index, filenames_hash)
+  private def emit_coverage_function_record(llvm_mod, function, filename_indices, filenames_hash)
     llvm_context = llvm_mod.context
-    mapping = function.encode_mapping(filename_index)
+    mapping = function.encode_mapping(filename_indices)
     name_hash = CoverageMapping.md5_hash(function.name)
 
     type = llvm_context.struct([

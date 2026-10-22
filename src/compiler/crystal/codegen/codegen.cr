@@ -1129,6 +1129,7 @@ module Crystal
             br while_block
 
             position_at_end fail_block
+            emit_coverage_loop_exit_counter(node) if @coverage
 
             phi.add llvm_nil, @program.nil, last: true
           end
