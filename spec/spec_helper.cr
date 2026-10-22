@@ -218,9 +218,9 @@ def prepare_macro_call(macro_body, flags = nil, &)
   {program, a_macro, call}
 end
 
-def codegen(code, *, inject_primitives = true, single_module = false, debug = Crystal::Debug::None, filename = __FILE__)
+def codegen(code, *, inject_primitives = true, single_module = false, debug = Crystal::Debug::None, coverage = false, filename = __FILE__)
   result = semantic code, inject_primitives: inject_primitives, filename: filename
-  result.program.codegen(result.node, single_module: single_module, debug: debug)[""].mod
+  result.program.codegen(result.node, single_module: single_module, debug: debug, coverage: coverage)[""].mod
 end
 
 def compile(*codes, prelude = "empty", debug = Crystal::Debug::None, target = nil)

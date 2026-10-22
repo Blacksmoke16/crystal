@@ -204,6 +204,12 @@ module LLVM
     LinkerPrivateWeak
   end
 
+  enum Visibility
+    Default
+    Hidden
+    Protected
+  end
+
   enum DLLStorageClass
     Default
 

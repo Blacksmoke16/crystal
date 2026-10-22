@@ -305,6 +305,8 @@ class Crystal::CodeGenVisitor
 
         create_local_copy_of_block_args(target_def, self_type, call_args, args_base_index)
 
+        emit_def_coverage_counter(target_def, target_def.mangled_name(@program, self_type)) if @coverage
+
         Phi.open(self, node) do |phi|
           context.return_phi = phi
 
@@ -467,6 +469,7 @@ class Crystal::CodeGenVisitor
 
     case body
     when Nop, NilLiteral, BoolLiteral, CharLiteral, StringLiteral, NumberLiteral, SymbolLiteral
+      emit_def_coverage_counter(target_def, target_def.mangled_name(@program, self_type)) if @coverage
       return true unless @needs_value
 
       accept body
@@ -474,6 +477,7 @@ class Crystal::CodeGenVisitor
       true
     when Var
       if body.name == "self"
+        emit_def_coverage_counter(target_def, target_def.mangled_name(@program, self_type)) if @coverage
         return true unless @needs_value
 
         @last = self_type.passed_as_self? ? call_args.first : type_id(self_type)
@@ -483,6 +487,7 @@ class Crystal::CodeGenVisitor
         false
       end
     when InstanceVar
+      emit_def_coverage_counter(target_def, target_def.mangled_name(@program, self_type)) if @coverage
       return true unless @needs_value
 
       read_instance_var(body.type, self_type, body.name, call_args.first)

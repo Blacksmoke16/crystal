@@ -77,6 +77,10 @@ module Crystal
     # directory for each generated LLVM module.
     property? dump_ll = false
 
+    # If `true`, the executable writes source-based code coverage data for
+    # `llvm-cov` to `default.profraw`, or `$LLVM_PROFILE_FILE`, at exit.
+    property? coverage = false
+
     # Additional link flags to pass to the linker.
     property link_flags : String?
 
@@ -342,6 +346,7 @@ module Crystal
     private def bc_flags_changed?(output_dir)
       bc_flags_changed = true
       current_bc_flags = "#{@codegen_target}|#{@mcpu}|#{@mattr}|#{@link_flags}|#{@mcmodel}"
+      current_bc_flags += "|coverage" if @coverage
       bc_flags_filename = "#{output_dir}/bc_flags#{optimization_mode.suffix}"
       if File.file?(bc_flags_filename)
         previous_bc_flags = File.read(bc_flags_filename).strip
@@ -359,9 +364,17 @@ module Crystal
         end
       {% end %}
 
+      {% if LibLLVM::IS_LT_150 %}
+        if @coverage
+          stderr.puts "Error: --coverage requires a Crystal compiler built with LLVM 15 or a later version."
+          exit 1
+        end
+      {% end %}
+
       llvm_modules = @progress_tracker.stage("Codegen (crystal)") do
         program.codegen node, debug: debug, frame_pointers: frame_pointers,
-          single_module: @single_module || @cross_compile || !@emit_targets.none?
+          single_module: @single_module || @cross_compile || !@emit_targets.none?,
+          coverage: @coverage
       end
 
       output_dir = CacheDir.instance.directory_for(sources)
@@ -444,6 +457,7 @@ module Crystal
       llvm_mod = unit.llvm_mod
 
       @progress_tracker.stage("Codegen (bc+obj)") do
+        lower_coverage_counters llvm_mod, target_machine if @coverage
         optimize llvm_mod, target_machine unless @optimization_mode.o0?
 
         emit_filename = emit_base_filename || output_filename
@@ -548,8 +562,29 @@ module Crystal
 
         link_flags = use_modern_linker(link_flags)
 
+        if @coverage
+          # The runtime registers itself only if this symbol is referenced
+          link_flags += " -u__llvm_profile_runtime #{Process.quote_posix(profile_runtime_path)}"
+        end
+
         {DEFAULT_LINKER, %(#{DEFAULT_LINKER} "${@}" -o #{Process.quote_posix(output_filename)} #{link_flags} #{program.lib_flags(@cross_compile)}), object_names}
       end
+    end
+
+    # Returns the path of Clang's profile runtime library for the target,
+    # which writes the coverage counters to a file at exit.
+    private def profile_runtime_path
+      # Clang prints back the given name if it can't find the file
+      {"libclang_rt.profile-#{@codegen_target.architecture}.a", "libclang_rt.profile.a"}.each do |name|
+        output = IO::Memory.new
+        status = Process.run("clang", ["--target=#{@codegen_target}", "--print-file-name=#{name}"], output: output)
+        path = output.to_s.strip
+        return path if status.success? && path != name
+      end
+
+      raise CompilerError.new("Cannot locate Clang's profile runtime library (libclang_rt.profile) required by --coverage", :FAILURE)
+    rescue File::NotFoundError
+      raise CompilerError.new("Cannot locate Clang's profile runtime library: `clang` is required by --coverage", :FAILURE)
     end
 
     # Tests if `mold` or `lld` are available and prefers them as linkers over
@@ -793,6 +828,16 @@ module Crystal
       {% end %}
     end
 
+    # Lowers the coverage counter intrinsics emitted by codegen to the data
+    # structures of the profile runtime.
+    protected def lower_coverage_counters(llvm_mod, target_machine)
+      {% unless LibLLVM::IS_LT_150 %}
+        LLVM::PassBuilderOptions.new do |options|
+          LLVM.run_passes(llvm_mod, "instrprof", target_machine, options)
+        end
+      {% end %}
+    end
+
     private def run_linker(linker_name, command, args)
       print_command(command, args) if verbose?
 
@@ -954,7 +999,10 @@ module Crystal
       private def compile_to_object(file_name = object_name, *, optimize = true)
         temporary_object_name = self.temporary_object_name
         target_machine = compiler.create_target_machine
-        compiler.optimize llvm_mod, target_machine if optimize && !compiler.optimization_mode.o0?
+        if optimize
+          compiler.lower_coverage_counters llvm_mod, target_machine if compiler.coverage?
+          compiler.optimize llvm_mod, target_machine unless compiler.optimization_mode.o0?
+        end
         target_machine.emit_obj_to_file llvm_mod, temporary_object_name
         FileUtils.mv(temporary_object_name, file_name)
       end

@@ -18,4 +18,5 @@ lib LibLLVM
   type OperandBundleRef = Void*
   type AttributeRef = Void*
   type DbgRecordRef = Void*
+  type ComdatRef = Void*
 end

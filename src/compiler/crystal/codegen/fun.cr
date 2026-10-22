@@ -162,6 +162,8 @@ class Crystal::CodeGenVisitor
           end
         end
 
+        emit_def_coverage_counter(target_def, mangled_name) unless target_def.naked?
+
         context.return_type = target_def.type?
         context.return_phi = nil
 

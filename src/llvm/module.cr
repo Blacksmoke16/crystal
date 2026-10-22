@@ -45,6 +45,10 @@ class LLVM::Module
     GlobalCollection.new(self)
   end
 
+  def get_or_insert_comdat(name : String) : LibLLVM::ComdatRef
+    LibLLVM.get_or_insert_comdat(self, name)
+  end
+
   def add_flag(module_flag : LibLLVM::ModuleFlagBehavior, key : String, val : Int32)
     add_flag(module_flag, key, @context.int32.const_int(val))
   end

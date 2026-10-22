@@ -63,6 +63,18 @@ module LLVM::ValueMethods
     LibLLVM.set_dll_storage_class(self, storage_class)
   end
 
+  def section=(section : String)
+    LibLLVM.set_section(self, section)
+  end
+
+  def visibility=(visibility : LLVM::Visibility)
+    LibLLVM.set_visibility(self, visibility)
+  end
+
+  def comdat=(comdat : LibLLVM::ComdatRef)
+    LibLLVM.set_comdat(self, comdat)
+  end
+
   def call_convention=(call_convention)
     LibLLVM.set_instruction_call_convention(self, call_convention)
   end
