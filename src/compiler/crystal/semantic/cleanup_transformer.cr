@@ -910,12 +910,14 @@ module Crystal
       if obj_type = obj.type?
         filtered_type = yield obj_type
 
+        # The replacement keeps the location of the check, so that coverage
+        # maps the check in every instance of a def
         if obj_type == filtered_type
           @last_is_truthy = true
           if var?(obj)
-            return true_literal
+            return true_literal.at(node)
           else
-            exps = Expressions.new([obj, true_literal] of ASTNode)
+            exps = Expressions.new([obj, true_literal.at(node)] of ASTNode).at(node)
             exps.type = @program.bool
             return exps
           end
@@ -924,9 +926,9 @@ module Crystal
         unless filtered_type
           @last_is_falsey = true
           if var?(obj)
-            return false_literal
+            return false_literal.at(node)
           else
-            exps = Expressions.new([obj, false_literal] of ASTNode)
+            exps = Expressions.new([obj, false_literal.at(node)] of ASTNode).at(node)
             exps.type = @program.bool
             return exps
           end

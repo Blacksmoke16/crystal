@@ -54,7 +54,29 @@ module Crystal
       @regions << CoverageMapping::Region.new(
         counter: counter, file_id: 0,
         line_start: start_location.line_number, column_start: start_location.column_number,
-        line_end: end_location.line_number, column_end: end_location.column_number, gap: true)
+        line_end: end_location.line_number, column_end: end_location.column_number, kind: :gap)
+    end
+
+    # Maps the whole lines from *start_line* to *end_line*, inclusive, to a
+    # skipped region, so that they aren't reported. The line after it starts
+    # in the region around it.
+    def add_skipped_region(start_line : Int32, end_line : Int32) : Nil
+      # `llvm-cov` reads columns 0 to 0 as whole lines
+      @regions << CoverageMapping::Region.new(
+        counter: Counter.zero, file_id: 0,
+        line_start: start_line, column_start: 0,
+        line_end: end_line, column_end: 0, kind: :skipped)
+    end
+
+    # Maps the condition from *start_location* to *end_location*, inclusive,
+    # to a branch region, true as many times as *true_counter* counts and
+    # false as many times as *false_counter* counts.
+    def add_branch_region(true_counter : Counter, false_counter : Counter, start_location : Location, end_location : Location) : Nil
+      @regions << CoverageMapping::Region.new(
+        counter: true_counter, file_id: 0,
+        line_start: start_location.line_number, column_start: start_location.column_number,
+        line_end: end_location.line_number, column_end: end_location.column_number + 1,
+        kind: :branch, false_counter: false_counter)
     end
 
     def encode_mapping(filename_index : Int32) : Bytes
@@ -68,6 +90,36 @@ module Crystal
     # Must only be called once all regions are added.
     def structural_hash : UInt64
       @structural_hash ||= used? ? CoverageMapping.md5_hash(encode_mapping(0)) : 0_u64
+    end
+  end
+
+  # Locations of nodes in the file of the coverage function `@function`.
+  private module CoverageLocations
+    private def start_location(node) : Location?
+      node.location || node.as?(Expressions).try(&.expressions.first?).try { |exp| start_location(exp) }
+    end
+
+    private def end_location(node) : Location?
+      node.end_location || node.as?(Expressions).try(&.expressions.last?).try { |exp| end_location(exp) }
+    end
+
+    private def in_function_file?(location : Location?) : Bool
+      !!location && location.filename == @function.filename
+    end
+
+    # Returns `true` if the located *statements* follow each other in the
+    # source without overlapping, like parsed statements do.
+    private def source_ordered?(statements)
+      previous_end = nil
+      statements.each do |statement|
+        start_location = start_location(statement)
+        end_location = end_location(statement)
+        next unless in_function_file?(start_location) && in_function_file?(end_location)
+
+        return false if previous_end && !(start_location.not_nil! <=> previous_end).try(&.>(0))
+        previous_end = end_location
+      end
+      true
     end
   end
 
@@ -98,17 +150,26 @@ module Crystal
   # starts in and of the regions that start in it. Each branch's region is
   # thus preceded by a gap region that starts right after the code before the
   # branch, so that the lines of the branch start in it.
+  #
+  # Lines without code, like comments and `end`, map to skipped regions so
+  # that they aren't reported. They're found in the source text rather than
+  # from the locations of nodes, which aren't always precise, for example in
+  # code passed to a macro.
   class CoverageRegionBuilder < Visitor
+    include CoverageLocations
+
     alias Counter = CoverageMapping::Counter
     alias NodeCounters = Hash(ASTNode, {CoverageFunction, Int32})
 
     @counter : Counter
     @escapes = Hash(ASTNode, Bool).new.compare_by_identity
+    @if_counters = Hash(If, {Counter, Counter}).new.compare_by_identity
 
     # Counters are added to *entry_counters* for the nodes to increment them
     # before, and to *continuation_counters* for the nodes to increment them
-    # after.
-    def initialize(@function : CoverageFunction, @entry_counters : NodeCounters, @continuation_counters : NodeCounters)
+    # after. *source_lines* are the lines of the function's file, if known.
+    def initialize(@function : CoverageFunction, @entry_counters : NodeCounters, @continuation_counters : NodeCounters,
+                   @source_lines : Array(String)? = nil)
       @counter = @function.entry_counter
     end
 
@@ -122,12 +183,22 @@ module Crystal
     def build_def(a_def : Def) : Nil
       location = a_def.location.not_nil!
       if location.filename.is_a?(String)
-        @function.add_region(@counter, location, a_def.end_location.not_nil!)
+        end_location = a_def.end_location.not_nil!
+        @function.add_region(@counter, location, end_location)
+        add_skipped_regions(location.line_number, end_location.line_number)
       else
         call_location = location.expanded_location.not_nil!
         @function.add_region(@counter, call_location, call_location)
       end
       a_def.body.accept self
+    end
+
+    # Maps the source of *a_def*, which was never codegen'd, to zero.
+    def build_unused_def(a_def : Def) : Nil
+      location = a_def.location.not_nil!
+      end_location = a_def.end_location.not_nil!
+      @function.add_region(Counter.zero, location, end_location)
+      add_skipped_regions(location.line_number, end_location.line_number)
     end
 
     # Maps the source from *location* to the end of *value*, the initializer
@@ -141,6 +212,9 @@ module Crystal
       unless add_region(location, value, @counter)
         @function.add_region(@counter, location, location)
       end
+      if (end_location = end_location(value)) && in_function_file?(end_location)
+        add_skipped_regions(location.line_number, end_location.line_number)
+      end
       value.accept self
     end
 
@@ -150,6 +224,16 @@ module Crystal
       visit_statements(statements, top_level: true)
       if (first = statements.first?) && !@function.regions.empty?
         @entry_counters[first] = {@function, 0}
+      end
+
+      statements.each do |statement|
+        next if declaration?(statement)
+
+        start_location = start_location(statement)
+        end_location = end_location(statement)
+        if in_function_file?(start_location) && in_function_file?(end_location)
+          add_skipped_regions(start_location.not_nil!.line_number, end_location.not_nil!.line_number)
+        end
       end
     end
 
@@ -171,18 +255,21 @@ module Crystal
     end
 
     def visit(node : If)
-      return true unless in_function_file?(node)
+      return true unless in_function_file?(node.location)
 
       node.cond.accept self
       parent = @counter
       then_counter = add_counter(node.then, @entry_counters)
+      else_counter = @function.add_expression(:subtract, parent, then_counter)
+      @if_counters[node] = {then_counter, else_counter}
+      add_branch_regions(node, then_counter, else_counter)
 
       # The expansions of `a && b` and `a || b` repeat `a` as a branch, which
       # must not map the source of `a` a second time. Expanded conditions,
       # like those of `case`, may have no end location.
       visit_branch(node.then, then_counter, location_after(node.cond) || node.location,
         region: !same_start?(node.then, node.cond))
-      visit_branch(node.else, @function.add_expression(:subtract, parent, then_counter),
+      visit_branch(node.else, else_counter,
         location_after(node.then) || location_after(node.cond) || node.location,
         region: !same_start?(node.else, node.cond))
 
@@ -191,10 +278,18 @@ module Crystal
     end
 
     def visit(node : While)
-      return true unless in_function_file?(node)
+      return true unless in_function_file?(node.location)
 
       parent = @counter
       body_counter = add_counter(node.body, @entry_counters)
+
+      # The condition is false once per entry into the loop, unless its body
+      # escapes with `break`, `return` or an exception. `while true` has no
+      # condition to report.
+      unless node.cond.single_expression.true_literal?
+        add_branch_region(node.cond, body_counter, parent)
+      end
+
       visit_branch(node.cond, @function.add_expression(:add, parent, body_counter), nil)
       visit_branch(node.body, body_counter, location_after(node.cond))
 
@@ -210,7 +305,7 @@ module Crystal
 
       # A captured block is codegen'd as a proc literal, its own function
       if (block = node.block) && !block.fun_literal
-        if in_function_file?(block)
+        if in_function_file?(block.location)
           parent = @counter
           visit_branch(block.body, add_counter(block.body, @entry_counters), block.location)
           @counter = parent
@@ -223,7 +318,7 @@ module Crystal
     end
 
     def visit(node : ExceptionHandler)
-      return true unless in_function_file?(node)
+      return true unless in_function_file?(node.location)
 
       parent = @counter
       node.body.accept self
@@ -279,23 +374,80 @@ module Crystal
       end
     end
 
-    # Maps *node* to *counter*, preceded by a gap region from *gap_start*.
-    # Returns `true` if the located *statements* follow each other in the
-    # source without overlapping, like parsed statements do.
-    private def source_ordered?(statements)
-      previous_end = nil
-      statements.each do |statement|
-        start_location = start_location(statement)
-        end_location = end_location(statement)
-        next unless start_location && end_location
-        next unless start_location.filename == @function.filename && end_location.filename == @function.filename
+    # A line consisting of keywords and punctuation that close code, of a
+    # comment, or of nothing.
+    private LINE_WITHOUT_CODE = /\A\s*(?:(?:end|else|ensure|begin|then|do)\b|[\}\]\),;])?(?:\s*(?:end\b|[\}\]\),;]))*\s*(?:#.*)?\z/
 
-        return false if previous_end && !(start_location <=> previous_end).try(&.>(0))
-        previous_end = end_location
+    # Maps the lines without code from *first_line* to *last_line* to skipped
+    # regions.
+    private def add_skipped_regions(first_line, last_line)
+      return unless source_lines = @source_lines
+
+      skipped_start = nil
+      (first_line..last_line + 1).each do |line_number|
+        line = source_lines[line_number - 1]? if line_number <= last_line
+        if line && LINE_WITHOUT_CODE.matches?(line)
+          skipped_start ||= line_number
+        elsif skipped_start
+          @function.add_skipped_region(skipped_start, line_number - 1)
+          skipped_start = nil
+        end
       end
-      true
     end
 
+    # Returns the condition tested by an `If` with condition *cond*: the
+    # left operand of `a && b` and `a || b` is assigned to a temporary
+    # variable, unless it's a variable.
+    private def condition(cond)
+      if cond.is_a?(Assign) && (target = cond.target).is_a?(Var) && target.name.starts_with?("__temp")
+        cond.value
+      else
+        cond
+      end
+    end
+
+    # Maps the condition of *node* to a branch region, true as many times as
+    # its `then` runs and false as many times as its `else` runs.
+    #
+    # Each operand of `a || b` and `a && b` is a condition, but `a || b`
+    # expands to an `If` testing `a` whose `else` is `b`. An `If` whose
+    # condition is such an expansion tests its value, which is that of its
+    # last operand only when that operand ran, so it maps that operand with
+    # the counts of those times. For `x || y`, `y` ran when `x` was false, and
+    # for `x && y`, when `x` was true.
+    private def add_branch_regions(node : If, then_counter, else_counter)
+      cond = condition(node.cond)
+      if cond.is_a?(If) && (cond.or? || cond.and?) && (inner_counters = @if_counters[cond]?)
+        inner_then_counter, inner_else_counter = inner_counters
+        operand = cond.or? ? cond.else : cond.then
+
+        # The counts of a nested expansion would also depend on its own
+        # operands
+        return if operand.is_a?(If) && (operand.or? || operand.and?)
+
+        if cond.or?
+          then_counter = @function.add_expression(:subtract, then_counter, inner_then_counter)
+        else
+          else_counter = @function.add_expression(:subtract, else_counter, inner_else_counter)
+        end
+        cond = operand
+      end
+
+      add_branch_region(cond, then_counter, else_counter)
+    end
+
+    # Maps the source of *cond* to a branch region. An expanded condition
+    # without an end location maps its first column.
+    private def add_branch_region(cond, true_counter, false_counter)
+      start_location = start_location(cond)
+      end_location = end_location(cond) || start_location
+      return unless in_function_file?(start_location) && in_function_file?(end_location)
+      return unless (start_location.not_nil! <=> end_location.not_nil!).try(&.<=(0))
+
+      @function.add_branch_region(true_counter, false_counter, start_location.not_nil!, end_location.not_nil!)
+    end
+
+    # Maps *node* to *counter*, preceded by a gap region from *gap_start*.
     private def visit_branch(node, counter, gap_start : Location?, region = true)
       if region
         add_gap_region(gap_start, node, counter)
@@ -342,18 +494,6 @@ module Crystal
       if end_location = end_location(node)
         Location.new(end_location.filename, end_location.line_number, end_location.column_number + 1)
       end
-    end
-
-    private def start_location(node) : Location?
-      node.location || node.as?(Expressions).try(&.expressions.first?).try { |exp| start_location(exp) }
-    end
-
-    private def end_location(node) : Location?
-      node.end_location || node.as?(Expressions).try(&.expressions.last?).try { |exp| end_location(exp) }
-    end
-
-    private def in_function_file?(node)
-      node.location.try(&.filename) == @function.filename
     end
 
     private def same_start?(node, other)

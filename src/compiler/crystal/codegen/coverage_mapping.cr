@@ -38,15 +38,34 @@ module Crystal
     # `CounterKind::Add`.
     record Expression, lhs : Counter, rhs : Counter
 
+    enum RegionKind
+      # Code executed as many times as its counter counts.
+      Code
+
+      # Source between code, such as between a condition and the body of a
+      # branch. It doesn't count as executed code of the lines it covers,
+      # but it sets the count of the lines that follow it.
+      Gap
+
+      # Source without code, whose lines aren't reported.
+      Skipped
+
+      # A condition, true as many times as its counter counts and false as
+      # many times as its false counter counts.
+      Branch
+    end
+
     # A region in the file at index *file_id* of a function's file table.
     # Lines and columns are 1-based; *column_end* is exclusive.
-    #
-    # A gap region covers source between code, such as between a condition
-    # and the body of a branch. It doesn't count as executed code of the
-    # lines it covers, but it sets the count of the lines that follow it.
     record Region, counter : Counter, file_id : Int32,
       line_start : Int32, column_start : Int32,
-      line_end : Int32, column_end : Int32, gap : Bool = false
+      line_end : Int32, column_end : Int32,
+      kind : RegionKind = :code, false_counter : Counter = Counter.zero
+
+    # The headers of regions without a counter of their own: the zero counter
+    # tag, then the region kind as `llvm-cov` numbers them.
+    private SKIPPED_REGION_HEADER = 2_u64 << 3
+    private BRANCH_REGION_HEADER  = 4_u64 << 3
 
     # Returns the hash `llvm-cov` uses to identify function names and
     # filenames tables: the first 8 bytes of the MD5 digest, as a
@@ -96,11 +115,20 @@ module Crystal
         # start line in the same file.
         previous_line = 0
         file_regions.each do |region|
-          write_uleb128(io, region.counter.encode)
+          case region.kind
+          in .code?, .gap?
+            write_uleb128(io, region.counter.encode)
+          in .skipped?
+            write_uleb128(io, SKIPPED_REGION_HEADER)
+          in .branch?
+            write_uleb128(io, BRANCH_REGION_HEADER)
+            write_uleb128(io, region.counter.encode)
+            write_uleb128(io, region.false_counter.encode)
+          end
           write_uleb128(io, region.line_start - previous_line)
           write_uleb128(io, region.column_start)
           write_uleb128(io, region.line_end - region.line_start)
-          write_uleb128(io, region.gap ? (region.column_end.to_u64 | 1_u64 << 31) : region.column_end)
+          write_uleb128(io, region.kind.gap? ? (region.column_end.to_u64 | 1_u64 << 31) : region.column_end)
           previous_line = region.line_start
         end
       end

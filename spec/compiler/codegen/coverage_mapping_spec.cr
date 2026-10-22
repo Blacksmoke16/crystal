@@ -39,9 +39,26 @@ describe Crystal::CoverageMapping do
     it "encodes a gap region (same as Clang)" do
       region = Crystal::CoverageMapping::Region.new(
         counter: Crystal::CoverageMapping::Counter.reference(1), file_id: 0,
-        line_start: 1, column_start: 26, line_end: 1, column_end: 27, gap: true)
+        line_start: 1, column_start: 26, line_end: 1, column_end: 27, kind: :gap)
       Crystal::CoverageMapping.encode_function([1], [] of Crystal::CoverageMapping::Expression, [region]).should eq(
         Bytes[1, 1, 0, 1, 5, 1, 26, 0, 0x9B, 0x80, 0x80, 0x80, 0x08])
+    end
+
+    it "encodes a branch region (same as Clang)" do
+      region = Crystal::CoverageMapping::Region.new(
+        counter: Crystal::CoverageMapping::Counter.reference(1), file_id: 0,
+        line_start: 1, column_start: 20, line_end: 1, column_end: 25, kind: :branch,
+        false_counter: Crystal::CoverageMapping::Counter.new(:subtract, 0))
+      Crystal::CoverageMapping.encode_function([1], [] of Crystal::CoverageMapping::Expression, [region]).should eq(
+        Bytes[1, 1, 0, 1, 0x20, 5, 2, 1, 20, 0, 25])
+    end
+
+    it "encodes a skipped region" do
+      region = Crystal::CoverageMapping::Region.new(
+        counter: Crystal::CoverageMapping::Counter.zero, file_id: 0,
+        line_start: 3, column_start: 0, line_end: 5, column_end: 0, kind: :skipped)
+      Crystal::CoverageMapping.encode_function([1], [] of Crystal::CoverageMapping::Expression, [region]).should eq(
+        Bytes[1, 1, 0, 1, 0x10, 3, 0, 2, 0])
     end
 
     it "encodes expressions" do

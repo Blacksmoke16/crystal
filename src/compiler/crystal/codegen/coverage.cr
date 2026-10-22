@@ -34,7 +34,7 @@ class Crystal::CodeGenVisitor
       # Typed defs that differ only in the type of their block have the
       # same name, but not necessarily the same counters
       function = CoverageFunction.new(unique_coverage_function_name(mangled_name), source_filename)
-      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters).build_def(target_def)
+      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters, coverage_source_lines(function.filename)).build_def(target_def)
       @coverage_def_locations << coverage_location_key(location) if location.filename.is_a?(String)
       function
     end
@@ -50,7 +50,7 @@ class Crystal::CodeGenVisitor
       next unless instrument_coverage?(filename)
 
       function = CoverageFunction.new(unique_coverage_function_name("#{name} initializer"), filename)
-      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters).build_initializer(location, value)
+      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters, coverage_source_lines(function.filename)).build_initializer(location, value)
 
       # A value expanded from a macro has no source to map
       function unless function.regions.empty?
@@ -79,7 +79,7 @@ class Crystal::CodeGenVisitor
       next unless instrument_coverage?(filename)
 
       function = CoverageFunction.new("__crystal_main #{filename}", filename)
-      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters).build_top_level(statements)
+      CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters, coverage_source_lines(function.filename)).build_top_level(statements)
     end
   end
 
@@ -105,6 +105,17 @@ class Crystal::CodeGenVisitor
   private def emit_coverage_continuation_counter(node)
     if entry = @coverage_continuation_counters[node]?
       emit_coverage_counter(*entry)
+    end
+  end
+
+  # The lines of each source file, read from disk like error messages do.
+  @coverage_source_lines = {} of String => Array(String)?
+
+  private def coverage_source_lines(filename : String) : Array(String)?
+    @coverage_source_lines.put_if_absent(filename) do
+      File.read_lines(filename) if File.file?(filename)
+    rescue IO::Error
+      nil
     end
   end
 
@@ -212,7 +223,7 @@ class Crystal::CodeGenVisitor
     # Used functions are named after their LLVM functions, which start with
     # `*`, so these names can't clash with them.
     function = CoverageFunction.new("#{a_def.short_reference} at #{location}", location.filename.as(String), used: false)
-    function.add_region(function.entry_counter, location, a_def.end_location.not_nil!)
+    CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters, coverage_source_lines(function.filename)).build_unused_def(a_def)
     unused_functions << function
   end
 

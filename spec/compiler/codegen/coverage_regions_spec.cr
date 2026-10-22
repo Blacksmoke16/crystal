@@ -11,7 +11,13 @@ end
 
 private def region_strings(function)
   function.regions.map do |region|
-    "#{counter_string(region.counter)} #{region.line_start}:#{region.column_start}-#{region.line_end}:#{region.column_end}#{" gap" if region.gap}"
+    location = "#{region.line_start}:#{region.column_start}-#{region.line_end}:#{region.column_end}"
+    case region.kind
+    in .code?    then "#{counter_string(region.counter)} #{location}"
+    in .gap?     then "#{counter_string(region.counter)} #{location} gap"
+    in .skipped? then "skip #{location}"
+    in .branch?  then "#{counter_string(region.counter)}/#{counter_string(region.false_counter)} #{location} branch"
+    end
   end
 end
 
@@ -21,21 +27,21 @@ private def expression_strings(function)
   end
 end
 
-private def new_builder(function)
+private def new_builder(function, source_lines = nil)
   entry_counters = Crystal::CoverageRegionBuilder::NodeCounters.new.compare_by_identity
   continuation_counters = Crystal::CoverageRegionBuilder::NodeCounters.new.compare_by_identity
-  {Crystal::CoverageRegionBuilder.new(function, entry_counters, continuation_counters), entry_counters, continuation_counters}
+  {Crystal::CoverageRegionBuilder.new(function, entry_counters, continuation_counters, source_lines), entry_counters, continuation_counters}
 end
 
-private def build_def(a_def : Crystal::Def)
+private def build_def(a_def : Crystal::Def, source_lines = nil)
   function = Crystal::CoverageFunction.new("foo", "")
-  builder, entry_counters, continuation_counters = new_builder(function)
+  builder, entry_counters, continuation_counters = new_builder(function, source_lines)
   builder.build_def(a_def)
   {function, entry_counters, continuation_counters}
 end
 
 private def build_def(code : String)
-  build_def(Crystal::Parser.parse(code).as(Crystal::Def))
+  build_def(Crystal::Parser.parse(code).as(Crystal::Def), code.lines)
 end
 
 describe Crystal::CoverageRegionBuilder do
@@ -46,7 +52,7 @@ describe Crystal::CoverageRegionBuilder do
       end
       CRYSTAL
 
-    region_strings(function).should eq(["c0 1:1-3:4"])
+    region_strings(function).should eq(["c0 1:1-3:4", "skip 3:0-3:0"])
     function.num_counters.should eq(1)
   end
 
@@ -60,7 +66,7 @@ describe Crystal::CoverageRegionBuilder do
   end
 
   it "counts the then branch of an if, and derives the else branch" do
-    a_def = Crystal::Parser.parse(<<-CRYSTAL).as(Crystal::Def)
+    code = <<-CRYSTAL
       def foo(x)
         if x
           1
@@ -69,10 +75,12 @@ describe Crystal::CoverageRegionBuilder do
         end
       end
       CRYSTAL
-    function, entry_counters, _ = build_def(a_def)
+    a_def = Crystal::Parser.parse(code).as(Crystal::Def)
+    function, entry_counters, _ = build_def(a_def, code.lines)
 
     region_strings(function).should eq([
-      "c0 1:1-7:4",
+      "c0 1:1-7:4", "skip 4:0-4:0", "skip 6:0-7:0",
+      "c1/e0 2:6-2:7 branch",
       "c1 2:7-3:5 gap", "c1 3:5-3:6",
       "e0 3:6-5:5 gap", "e0 5:5-5:6",
     ])
@@ -81,17 +89,18 @@ describe Crystal::CoverageRegionBuilder do
   end
 
   it "counts the statements after one that may not complete" do
-    a_def = Crystal::Parser.parse(<<-CRYSTAL).as(Crystal::Def)
+    code = <<-CRYSTAL
       def foo(x)
         return 1 if x
         2
       end
       CRYSTAL
-    function, _, continuation_counters = build_def(a_def)
+    a_def = Crystal::Parser.parse(code).as(Crystal::Def)
+    function, _, continuation_counters = build_def(a_def, code.lines)
 
     region_strings(function).should eq([
-      "c0 1:1-4:4",
-      "c0 2:3-2:16", "c1 2:3-2:11",
+      "c0 1:1-4:4", "skip 4:0-4:0",
+      "c0 2:3-2:16", "c1/e0 2:15-2:16 branch", "c1 2:3-2:11",
       "c2 2:16-3:3 gap", "c2 3:3-3:4",
     ])
     continuation_counters[a_def.body.as(Crystal::Expressions).expressions.first].should eq({function, 2})
@@ -100,16 +109,17 @@ describe Crystal::CoverageRegionBuilder do
   it "maps statements removed after one that doesn't complete to zero" do
     # Typed defs are clones, which store the end location of all the parsed
     # statements, before the ones that can't run are removed
-    a_def = Crystal::Parser.parse(<<-CRYSTAL).as(Crystal::Def).clone
+    code = <<-CRYSTAL
       def foo
         return 1
         2
       end
       CRYSTAL
+    a_def = Crystal::Parser.parse(code).as(Crystal::Def).clone
     a_def.body.as(Crystal::Expressions).expressions.pop
-    function, _, _ = build_def(a_def)
+    function, _, _ = build_def(a_def, code.lines)
 
-    region_strings(function).should eq(["c0 1:1-4:4", "c0 2:3-2:11", "0 2:11-3:4 gap"])
+    region_strings(function).should eq(["c0 1:1-4:4", "skip 4:0-4:0", "c0 2:3-2:11", "0 2:11-3:4 gap"])
   end
 
   it "precedes each statement after a continuation counter with a gap" do
@@ -122,8 +132,8 @@ describe Crystal::CoverageRegionBuilder do
       CRYSTAL
 
     region_strings(function).should eq([
-      "c0 1:1-5:4",
-      "c0 2:3-2:14", "c1 2:3-2:9",
+      "c0 1:1-5:4", "skip 5:0-5:0",
+      "c0 2:3-2:14", "c1/e0 2:13-2:14 branch", "c1 2:3-2:9",
       "c2 2:14-3:3 gap", "c2 3:3-3:11",
       "c2 3:11-4:3 gap", "c2 4:3-4:14",
     ])
@@ -149,8 +159,8 @@ describe Crystal::CoverageRegionBuilder do
       CRYSTAL
 
     region_strings(function).should eq([
-      "c0 1:1-5:4",
-      "e0 2:9-2:10",
+      "c0 1:1-5:4", "skip 4:0-5:0",
+      "c1/c0 2:9-2:10 branch", "e0 2:9-2:10",
       "c1 2:10-3:5 gap", "c1 3:5-3:6",
     ])
     expression_strings(function).should eq(["c0, c1"])
@@ -166,9 +176,32 @@ describe Crystal::CoverageRegionBuilder do
       CRYSTAL
 
     region_strings(function).should eq([
-      "c0 1:1-5:4",
+      "c0 1:1-5:4", "skip 4:0-5:0",
       "c1 2:7-3:5 gap", "c1 3:5-3:6",
     ])
+  end
+
+  it "skips lines without code: blank, comments, and closing keywords only" do
+    function, _, _ = build_def <<-CRYSTAL
+      def foo
+        # comment
+
+        bar(
+          1,
+        )
+        begin
+          baz
+        end.qux
+      end
+      CRYSTAL
+
+    region_strings(function).select(&.starts_with?("skip")).should eq(["skip 2:0-3:0", "skip 6:0-7:0", "skip 10:0-10:0"])
+  end
+
+  it "doesn't skip lines without source" do
+    function, _, _ = build_def(Crystal::Parser.parse("def foo\n  1\nend").as(Crystal::Def))
+
+    region_strings(function).should eq(["c0 1:1-3:4"])
   end
 
   it "counts rescue and ensure bodies" do
@@ -183,7 +216,7 @@ describe Crystal::CoverageRegionBuilder do
       CRYSTAL
 
     region_strings(function).should eq([
-      "c0 1:1-7:4",
+      "c0 1:1-7:4", "skip 5:0-5:0", "skip 7:0-7:0",
       "c1 2:6-4:3 gap", "c1 4:3-4:6",
       "c2 4:6-6:3 gap", "c2 6:3-6:6",
     ])
@@ -196,7 +229,7 @@ describe Crystal::CoverageRegionBuilder do
     a_def.end_location = Crystal::Location.new("", 1, 6)
     function, _, _ = build_def(a_def)
 
-    region_strings(function).should eq(["c0 1:1-1:7", "c1 1:6-1:7"])
+    region_strings(function).should eq(["c0 1:1-1:7", "c1/e0 1:1-1:2 branch", "c1 1:6-1:7"])
   end
 
   it "maps executable top-level statements" do
@@ -213,7 +246,7 @@ describe Crystal::CoverageRegionBuilder do
 
     region_strings(function).should eq([
       "c0 1:1-1:2",
-      "c0 4:1-4:12", "c1 4:1-4:7",
+      "c0 4:1-4:12", "c1/e0 4:11-4:12 branch", "c1 4:1-4:7",
       "c2 5:1-5:2",
     ])
     entry_counters[statements.first].should eq({function, 0})
