@@ -28,12 +28,12 @@ class Crystal::CodeGenVisitor
       next unless coverable_def?(target_def)
 
       location = target_def.location.not_nil!
-      @coverage_def_locations << coverage_location_key(location)
 
       # Typed defs that differ only in the type of their block have the
       # same name, but not necessarily the same counters
       function = CoverageFunction.new(unique_coverage_function_name(mangled_name), location.filename.as(String))
       CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters).build_def(target_def)
+      @coverage_def_locations << coverage_location_key(location)
       function
     end
   end
@@ -46,7 +46,9 @@ class Crystal::CodeGenVisitor
 
       function = CoverageFunction.new(unique_coverage_function_name("#{name} initializer"), filename)
       CoverageRegionBuilder.new(function, @coverage_entry_counters, @coverage_continuation_counters).build_initializer(location, value)
-      function
+
+      # A value expanded from a macro has no source to map
+      function unless function.regions.empty?
     end
 
     emit_coverage_counter(initializer_function, 0) if initializer_function
@@ -215,8 +217,11 @@ class Crystal::CodeGenVisitor
   private def emit_coverage_mapping(llvm_mod, functions)
     # The counters of a function may have been removed along with the code
     # that incremented them, such as a class variable initializer that
-    # turned out to be a constant
+    # turned out to be a constant. `llvm-cov` can't handle functions without
+    # regions.
     functions = functions.select do |function|
+      next false if function.regions.empty?
+
       !function.used? || llvm_mod.globals["__profn_#{function.name}"]?.try { |name_var| !name_var.use_empty? }
     end
     return if functions.empty?

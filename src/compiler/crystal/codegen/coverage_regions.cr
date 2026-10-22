@@ -82,9 +82,17 @@ module Crystal
   #
   # The statements following one that may not complete normally (with
   # `return`, `break`, `next`, a `NoReturn` call or exception handling) get a
-  # counter incremented right after that statement. The regions of other
-  # statements share their parent's counter. Exceptions raised by calls
-  # elsewhere aren't accounted for.
+  # counter incremented right after that statement. Other statements share
+  # their parent's counter. Exceptions raised by calls elsewhere aren't
+  # accounted for.
+  #
+  # Each statement gets its own region. `llvm-cov` adds up the counts of
+  # regions with the same location in all the instances of a def, but lets
+  # the innermost region win otherwise. Which statements may not complete,
+  # or were removed because they can't run, differs between instances, but
+  # the location of each statement doesn't. The regions that depend on the
+  # instance are gaps between statements, which only set the count of the
+  # lines that start in them.
   #
   # `llvm-cov` counts a line as the maximum of the count of the region it
   # starts in and of the regions that start in it. Each branch's region is
@@ -225,26 +233,54 @@ module Crystal
     end
 
     private def visit_statements(statements, top_level)
-      statements.each_with_index do |statement, index|
-        if top_level
-          next if declaration?(statement)
-          add_region(statement, statement, @counter)
-        end
+      # The expansions of literals, like `{"a" => -> { 1 }}`, are statements
+      # located at parts of the literal, which would map the source of a proc
+      # literal, its own function, a second time
+      unless source_ordered?(statements)
+        statements.each &.accept(self)
+        return
+      end
 
+      previous = nil
+      continued = false
+      statements.each_with_index do |statement, index|
+        next if top_level && declaration?(statement)
+
+        # After a continuation counter, the lines of each statement must start
+        # in a region of that counter rather than in the enclosing region.
+        # Top-level statements have no enclosing region, and declarations
+        # between them must stay unmapped.
+        if continued && previous && !top_level
+          add_gap_region(location_after(previous), statement, @counter)
+        end
+        add_region(statement, statement, @counter)
         statement.accept self
+        previous = statement
 
         next if index == statements.size - 1 || !escapes?(statement)
 
         @counter = add_counter(statement, @continuation_counters)
-        # Top-level statements each get their own region instead
-        unless top_level
-          add_gap_region(location_after(statement), statements[index + 1], @counter)
-          add_region(statements[index + 1], statements.last, @counter)
-        end
+        continued = true
       end
     end
 
     # Maps *node* to *counter*, preceded by a gap region from *gap_start*.
+    # Returns `true` if the located *statements* follow each other in the
+    # source without overlapping, like parsed statements do.
+    private def source_ordered?(statements)
+      previous_end = nil
+      statements.each do |statement|
+        start_location = start_location(statement)
+        end_location = end_location(statement)
+        next unless start_location && end_location
+        next unless start_location.filename == @function.filename && end_location.filename == @function.filename
+
+        return false if previous_end && !(start_location <=> previous_end).try(&.>(0))
+        previous_end = end_location
+      end
+      true
+    end
+
     private def visit_branch(node, counter, gap_start : Location?, region = true)
       if region
         add_gap_region(gap_start, node, counter)

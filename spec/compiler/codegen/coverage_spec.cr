@@ -61,6 +61,56 @@ describe "Code gen: coverage" do
     ir.should_not contain(increment_of("*Foo::new"))
   end
 
+  it "counts branches whose type checks are folded into literals" do
+    # The then branch of the `||` repeats `x.nil?`, which is true there.
+    # `bar`'s check is also true. Each must be its own node to keep its own
+    # counter.
+    ir = codegen_coverage <<-CRYSTAL
+      def foo(x : Int32?)
+        x.nil? || x > 0
+      end
+
+      def bar(y : Int32)
+        y.is_a?(Int32)
+      end
+
+      foo(1.as(Int32?))
+      a = bar(1)
+      CRYSTAL
+
+    ir.scan(/llvm\.instrprof\.increment\(ptr @"__profn_\*foo[^"]*", i64 -?\d+, i32 \d+, i32 1\)/).size.should eq(1)
+  end
+
+  it "counts instance variable initializers" do
+    ir = codegen_coverage <<-CRYSTAL
+      def one
+        1
+      end
+
+      class Foo
+        @x : Int32 = one
+      end
+
+      Foo.new
+      CRYSTAL
+
+    ir.should contain(increment_of("Foo@x initializer"))
+  end
+
+  it "doesn't map constant initializers expanded from macros" do
+    ir = codegen_coverage <<-CRYSTAL
+      class Foo
+        def initialize(@x : Int32)
+        end
+      end
+
+      FOO = {{ "Foo.new(1)".id }}
+      FOO
+      CRYSTAL
+
+    ir.should_not contain("FOO initializer")
+  end
+
   it "maps defs that are never called" do
     ir = codegen_coverage <<-CRYSTAL
       def foo(x)

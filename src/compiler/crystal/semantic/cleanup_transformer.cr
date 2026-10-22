@@ -1125,24 +1125,18 @@ module Crystal
       transform(node.assign)
     end
 
-    @false_literal : BoolLiteral?
-
+    # Each replacement is a new node: codegen with coverage instrumentation
+    # maps AST nodes to counters, so a node must not appear in several places.
     def false_literal
-      @false_literal ||= begin
-        false_literal = BoolLiteral.new(false)
-        false_literal.set_type(@program.bool)
-        false_literal
-      end
+      false_literal = BoolLiteral.new(false)
+      false_literal.set_type(@program.bool)
+      false_literal
     end
 
-    @true_literal : BoolLiteral?
-
     def true_literal
-      @true_literal ||= begin
-        true_literal = BoolLiteral.new(true)
-        true_literal.set_type(@program.bool)
-        true_literal
-      end
+      true_literal = BoolLiteral.new(true)
+      true_literal.set_type(@program.bool)
+      true_literal
     end
 
     def simple_constant?(node)

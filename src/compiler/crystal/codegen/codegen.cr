@@ -2369,6 +2369,7 @@ module Crystal
           context.vars = LLVMVars.new
           alloca_vars init.meta_vars
 
+          emit_initializer_coverage_counter("#{type}#{init.name}", init.value.location, init.value) if @coverage
           request_value(init.value)
 
           ivar_ptr = instance_var_ptr real_type, init.name, type_ptr

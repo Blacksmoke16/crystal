@@ -82,7 +82,7 @@ describe Crystal::CoverageRegionBuilder do
 
     region_strings(function).should eq([
       "c0 1:1-4:4",
-      "c1 2:3-2:11",
+      "c0 2:3-2:16", "c1 2:3-2:11",
       "c2 2:16-3:3 gap", "c2 3:3-3:4",
     ])
     continuation_counters[a_def.body.as(Crystal::Expressions).expressions.first].should eq({function, 2})
@@ -100,7 +100,35 @@ describe Crystal::CoverageRegionBuilder do
     a_def.body.as(Crystal::Expressions).expressions.pop
     function, _, _ = build_def(a_def)
 
-    region_strings(function).should eq(["c0 1:1-4:4", "0 2:11-3:4 gap"])
+    region_strings(function).should eq(["c0 1:1-4:4", "c0 2:3-2:11", "0 2:11-3:4 gap"])
+  end
+
+
+  it "precedes each statement after a continuation counter with a gap" do
+    function, _, _ = build_def <<-CRYSTAL
+      def foo
+        return if x
+        bar 1, 2
+        y = baz.qux
+      end
+      CRYSTAL
+
+    region_strings(function).should eq([
+      "c0 1:1-5:4",
+      "c0 2:3-2:14", "c1 2:3-2:9",
+      "c2 2:14-3:3 gap", "c2 3:3-3:11",
+      "c2 3:11-4:3 gap", "c2 4:3-4:14",
+    ])
+  end
+
+  it "doesn't map statements of expansions, which repeat source locations" do
+    hash_literal = Crystal::Parser.parse(%({"a" => -> { 1 }})).as(Crystal::HashLiteral)
+    expansion = Crystal::LiteralExpander.new(Crystal::Program.new).expand(hash_literal)
+    a_def = Crystal::Def.new("foo", body: expansion).at(Crystal::Location.new("", 1, 1))
+    a_def.end_location = Crystal::Location.new("", 1, 19)
+    function, _, _ = build_def(a_def)
+
+    region_strings(function).should eq(["c0 1:1-1:20"])
   end
 
   it "counts the body of a while, and derives the condition" do
