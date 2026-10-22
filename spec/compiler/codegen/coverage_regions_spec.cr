@@ -50,6 +50,15 @@ describe Crystal::CoverageRegionBuilder do
     function.num_counters.should eq(1)
   end
 
+  it "maps a def expanded from a macro to the macro call" do
+    source = "def foo\n  1\nend"
+    parser = Crystal::Parser.new(source)
+    parser.filename = Crystal::VirtualFile.new(Crystal::Macro.new("gen"), source, Crystal::Location.new("", 7, 3))
+    function, _, _ = build_def(parser.parse.as(Crystal::Def))
+
+    region_strings(function).should eq(["c0 7:3-7:4"])
+  end
+
   it "counts the then branch of an if, and derives the else branch" do
     a_def = Crystal::Parser.parse(<<-CRYSTAL).as(Crystal::Def)
       def foo(x)
@@ -102,7 +111,6 @@ describe Crystal::CoverageRegionBuilder do
 
     region_strings(function).should eq(["c0 1:1-4:4", "c0 2:3-2:11", "0 2:11-3:4 gap"])
   end
-
 
   it "precedes each statement after a continuation counter with a gap" do
     function, _, _ = build_def <<-CRYSTAL

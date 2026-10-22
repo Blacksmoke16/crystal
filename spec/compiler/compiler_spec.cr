@@ -16,6 +16,20 @@ describe "Compiler" do
     end
   end
 
+  it "doesn't instrument lib and the standard library for coverage by default" do
+    compiler = Crystal::Compiler.new
+    compiler.coverage_includes << "lib/shard"
+    compiler.coverage_excludes << "/project/spec"
+    filter = compiler.coverage_filter
+
+    filter.match?("/project/src/foo.cr").should be_true
+    filter.match?("/project/spec/foo_spec.cr").should be_false
+    filter.match?(File.expand_path("lib/shard/src/foo.cr")).should be_true
+    Crystal::CrystalPath.default_paths.each do |path|
+      filter.match?(File.join(File.expand_path(path), "foo.cr")).should be_false
+    end
+  end
+
   it "runs subcommand in preference to a filename " do
     Dir.cd compiler_datapath do
       with_temp_executable "compiler_spec_output" do |path|

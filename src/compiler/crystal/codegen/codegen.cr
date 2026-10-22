@@ -156,9 +156,11 @@ module Crystal
     end
 
     def codegen(node, single_module = false, debug = Debug::Default,
-                frame_pointers = FramePointers::Auto, coverage = false)
+                frame_pointers = FramePointers::Auto, coverage = false,
+                coverage_filter : PathFilter? = nil)
       visitor = CodeGenVisitor.new self, node, single_module: single_module,
-        debug: debug, frame_pointers: frame_pointers, coverage: coverage
+        debug: debug, frame_pointers: frame_pointers, coverage: coverage,
+        coverage_filter: coverage_filter
       visitor.accept node
       visitor.process_finished_hooks
       visitor.finish
@@ -284,7 +286,8 @@ module Crystal
                    @debug = Debug::Default,
                    @frame_pointers : FramePointers = :auto,
                    @llvm_context : LLVM::Context = LLVM::Context.new,
-                   @coverage : Bool = false)
+                   @coverage : Bool = false,
+                   @coverage_filter : PathFilter? = nil)
       @abi = ABI.from(@program.target_machine)
       # LLVM::Context.register(@llvm_context, "main")
       @llvm_mod = configure_module(@llvm_context.new_module("main_module"))

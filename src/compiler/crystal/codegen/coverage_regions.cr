@@ -115,8 +115,18 @@ module Crystal
     # Maps the source of *a_def* to the function's entry counter, and builds
     # its body's regions. The entry counter must be incremented when the
     # body is codegen'd.
+    #
+    # A def expanded from a macro has no source of its own, so it maps to the
+    # start of the macro call. Code passed to the macro, like a block, keeps
+    # its own source.
     def build_def(a_def : Def) : Nil
-      @function.add_region(@counter, a_def.location.not_nil!, a_def.end_location.not_nil!)
+      location = a_def.location.not_nil!
+      if location.filename.is_a?(String)
+        @function.add_region(@counter, location, a_def.end_location.not_nil!)
+      else
+        call_location = location.expanded_location.not_nil!
+        @function.add_region(@counter, call_location, call_location)
+      end
       a_def.body.accept self
     end
 
@@ -124,8 +134,13 @@ module Crystal
     # of a constant or class variable, to the function's entry counter, and
     # builds the regions of *value*. The entry counter must be incremented
     # when *value* is codegen'd.
+    #
+    # A value expanded from a macro has no source of its own, so only the
+    # start of the declaration is mapped.
     def build_initializer(location : Location, value : ASTNode) : Nil
-      add_region(location, value, @counter)
+      unless add_region(location, value, @counter)
+        @function.add_region(@counter, location, location)
+      end
       value.accept self
     end
 
@@ -297,15 +312,16 @@ module Crystal
     end
 
     # Maps the source from the start of *first* to the end of *last*, if both
-    # are known and in the function's file.
-    private def add_region(first : ASTNode | Location, last : ASTNode, counter)
+    # are known and in the function's file. Returns whether it did.
+    private def add_region(first : ASTNode | Location, last : ASTNode, counter) : Bool
       start_location = first.is_a?(Location) ? first : start_location(first)
       end_location = end_location(last)
-      return unless start_location && end_location
-      return unless start_location.filename == @function.filename && end_location.filename == @function.filename
-      return unless (start_location <=> end_location).try(&.<=(0))
+      return false unless start_location && end_location
+      return false unless start_location.filename == @function.filename && end_location.filename == @function.filename
+      return false unless (start_location <=> end_location).try(&.<=(0))
 
       @function.add_region(counter, start_location, end_location)
+      true
     end
 
     # Maps the source from *start_location* to right before *node*, if it's

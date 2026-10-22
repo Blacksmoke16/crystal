@@ -443,6 +443,12 @@ class Crystal::Command
         opts.on("--coverage", "Instrument for source-based code coverage with llvm-cov") do
           compiler.coverage = true
         end
+        opts.on("--coverage-include <path>", "Instrument path with --coverage") do |path|
+          compiler.coverage_includes << path
+        end
+        opts.on("--coverage-exclude <path>", "Don't instrument path with --coverage (default: lib and the standard library)") do |path|
+          compiler.coverage_excludes << path
+        end
       end
 
       opts.on("-D FLAG", "--define FLAG", "Define a compile-time flag") do |flag|
@@ -701,6 +707,12 @@ class Crystal::Command
     end
     opts.on("--coverage", "Instrument for source-based code coverage with llvm-cov") do
       compiler.coverage = true
+    end
+    opts.on("--coverage-include <path>", "Instrument path with --coverage") do |path|
+      compiler.coverage_includes << path
+    end
+    opts.on("--coverage-exclude <path>", "Don't instrument path with --coverage (default: lib and the standard library)") do |path|
+      compiler.coverage_excludes << path
     end
     opts.on("-D FLAG", "--define FLAG", "Define a compile-time flag") do |flag|
       compiler.flags << flag

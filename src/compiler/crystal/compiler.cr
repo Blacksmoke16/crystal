@@ -81,6 +81,13 @@ module Crystal
     # `llvm-cov` to `default.profraw`, or `$LLVM_PROFILE_FILE`, at exit.
     property? coverage = false
 
+    # Paths that `coverage?` instruments even if they are excluded.
+    property coverage_includes = [] of String
+
+    # Paths that `coverage?` doesn't instrument, in addition to the standard
+    # library and the `lib` directory.
+    property coverage_excludes = [] of String
+
     # Additional link flags to pass to the linker.
     property link_flags : String?
 
@@ -356,6 +363,14 @@ module Crystal
       bc_flags_changed
     end
 
+    # Selects the files that `coverage?` instruments.
+    def coverage_filter : PathFilter
+      expand = ->(paths : Array(String)) { paths.map { |path| ::Path[path].expand.to_posix.to_s } }
+      PathFilter.new(
+        includes: expand.call(@coverage_includes),
+        excludes: expand.call(CrystalPath.default_paths + @coverage_excludes))
+    end
+
     private def codegen(program, node : ASTNode, sources, output_filename)
       {% if LibLLVM::IS_LT_130 %}
         if @codegen_target.architecture == "aarch64"
@@ -374,7 +389,7 @@ module Crystal
       llvm_modules = @progress_tracker.stage("Codegen (crystal)") do
         program.codegen node, debug: debug, frame_pointers: frame_pointers,
           single_module: @single_module || @cross_compile || !@emit_targets.none?,
-          coverage: @coverage
+          coverage: @coverage, coverage_filter: coverage_filter
       end
 
       output_dir = CacheDir.instance.directory_for(sources)

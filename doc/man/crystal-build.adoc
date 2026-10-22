@@ -51,6 +51,14 @@ crystal-build - Compile a Crystal program
   `LLVM_PROFILE_FILE` environment variable. Merge profiles with `llvm-profdata
   merge` and report coverage with `llvm-cov`. Requires `clang` to locate the
   LLVM profile runtime library.
+*--coverage-exclude* _PATH_::
+  Don't instrument files in _PATH_, a directory or a glob pattern, with
+  *--coverage*. Can be given multiple times. The `lib` directory and the
+  standard library are always excluded, unless included with
+  *--coverage-include*.
+*--coverage-include* _PATH_::
+  Instrument files in _PATH_, a directory or a glob pattern, with *--coverage*
+  even if they are excluded. Can be given multiple times.
 *-f* text|json, *--format* text|json::
   Format of output. Defaults to text. The json format can be used to get a more
   parser-friendly output.

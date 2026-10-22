@@ -1,7 +1,7 @@
 require "../../spec_helper"
 
-private def codegen_coverage(code)
-  codegen(code, single_module: true, coverage: true).to_s
+private def codegen_coverage(code, coverage_filter = nil)
+  codegen(code, single_module: true, coverage: true, coverage_filter: coverage_filter).to_s
 end
 
 private def increment_of(name)
@@ -97,7 +97,7 @@ describe "Code gen: coverage" do
     ir.should contain(increment_of("Foo@x initializer"))
   end
 
-  it "doesn't map constant initializers expanded from macros" do
+  it "counts constant initializers expanded from macros" do
     ir = codegen_coverage <<-CRYSTAL
       class Foo
         def initialize(@x : Int32)
@@ -108,7 +108,39 @@ describe "Code gen: coverage" do
       FOO
       CRYSTAL
 
-    ir.should_not contain("FOO initializer")
+    ir.should contain(increment_of("FOO initializer"))
+  end
+
+  it "counts defs expanded from macros" do
+    ir = codegen_coverage <<-CRYSTAL
+      macro def_foo
+        def foo(x)
+          x &+ 1
+        end
+      end
+
+      def_foo
+      foo(1)
+      CRYSTAL
+
+    ir.should contain(increment_of("*foo<Int32>:Int32"))
+  end
+
+  it "doesn't instrument code that the filter excludes" do
+    ir = codegen_coverage <<-CRYSTAL, Crystal::PathFilter.new(excludes: [__FILE__])
+      def foo(x)
+        x &+ 1
+      end
+
+      def bar(x)
+      end
+
+      FOO = foo(1)
+      foo(FOO)
+      CRYSTAL
+
+    ir.should_not contain("llvm.instrprof.increment")
+    ir.should_not contain("__llvm_coverage_names")
   end
 
   it "maps defs that are never called" do
