@@ -66,7 +66,7 @@ module Crystal
       call.name_location = original_call.name_location
       fake_call = Call.new("method_missing", call).at(original_call)
 
-      expanded_macro, macro_expansion_pragmas = program.expand_macro method_missing, fake_call, self, self
+      expanded_macro, macro_expansion_pragmas, _ = program.expand_macro method_missing, fake_call, self, self
 
       # Check if the expanded macro is a def. We do this
       # by just lexing the result and seeing if the first

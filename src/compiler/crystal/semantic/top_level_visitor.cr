@@ -1371,7 +1371,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     @finished_hooks.each do |hook|
       self.current_type = hook.scope
       expansion = expand_macro(hook.macro, hook.macro, visibility: :public) do
-        @program.expand_macro hook.macro.body, hook.scope
+        @program.expand_macro hook.macro.body, hook.scope, keep_literal_lines: true
       end
       program.add_finished_hook(hook.scope, hook.macro, expansion)
     end

@@ -12,7 +12,19 @@ class Crystal::VirtualFile
   # The location where the macro was expanded (where the macro was invoked).
   getter expanded_location : Location?
 
-  def initialize(@macro : Macro, @source : String, @expanded_location : Location?)
+  # The location in the macro's source code where each line of `source` starts,
+  # by line number, for the lines that start in the macro's literal text.
+  getter line_locations : Hash(Int32, Location)?
+
+  def initialize(@macro : Macro, @source : String, @expanded_location : Location?, @line_locations : Hash(Int32, Location)? = nil)
+  end
+
+  # Returns the location in the macro's source code of *line_number* and *column_number* of `source`,
+  # if that line starts in the macro's literal text.
+  def line_location(line_number : Int32, column_number : Int32) : Location?
+    if line_location = @line_locations.try &.[line_number]?
+      Location.new(line_location.filename, line_location.line_number, column_number)
+    end
   end
 
   def to_s(io : IO) : Nil

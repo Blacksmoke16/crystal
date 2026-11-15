@@ -438,7 +438,10 @@ module Crystal
     def file_and_dir(filename)
       # We should have expanded locations with VirtualFiles in them to
       # the location where they expanded. Debug locations will point
-      # to the single line where the macro was expanded. This is not
+      # to the single line where the macro was expanded, except for the
+      # literal text of an inline macro expression such as a top-level
+      # `{% if %}` or of a `macro finished` hook, which is the file's own
+      # code and keeps its lines (see `VirtualFile#line_locations`). This is not
       # convenient for debugging macro code, but the other solution
       # involves creating temporary files to hold the expanded macro
       # code, but that prevents reusing previous compilations. In

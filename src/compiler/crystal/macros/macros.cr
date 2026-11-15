@@ -24,7 +24,7 @@ class Crystal::Program
 
     interpreter = MacroInterpreter.new self, scope, path_lookup || scope, a_macro, call, a_def, in_macro: true
     a_macro.body.accept interpreter
-    {interpreter.to_s, interpreter.macro_expansion_pragmas}
+    {interpreter.to_s, interpreter.macro_expansion_pragmas, interpreter.line_locations}
   rescue ex
     # `skip_file` isn't an error, so it's handled the same with or without macro code coverage.
     raise ex if @program.macro_expansion_error_hook.nil? || ex.is_a?(SkipMacroException)
@@ -35,11 +35,15 @@ class Crystal::Program
     @program.macro_expanded_hook.try &.call
   end
 
-  def expand_macro(node : ASTNode, scope : Type, path_lookup : Type? = nil, free_vars = nil, a_def : Def? = nil)
+  # If *keep_literal_lines* is true, lines of the expansion that come from the literal text of *node*
+  # keep their location in the source code. This is for inline macro expressions, such as a top-level
+  # `{% if %}`, and `macro finished` hooks, whose literal text is the file's own code.
+  def expand_macro(node : ASTNode, scope : Type, path_lookup : Type? = nil, free_vars = nil, a_def : Def? = nil, *, keep_literal_lines = false)
     interpreter = MacroInterpreter.new self, scope, path_lookup || scope, node.location, def: a_def, in_macro: false
     interpreter.free_vars = free_vars
+    interpreter.line_locations = {} of Int32 => Location if keep_literal_lines
     node.accept interpreter
-    {interpreter.to_s, interpreter.macro_expansion_pragmas}
+    {interpreter.to_s, interpreter.macro_expansion_pragmas, interpreter.line_locations}
   rescue ex
     # `skip_file` isn't an error, so it's handled the same with or without macro code coverage.
     raise ex if @program.macro_expansion_error_hook.nil? || ex.is_a?(SkipMacroException)
@@ -50,13 +54,13 @@ class Crystal::Program
     @program.macro_expanded_hook.try &.call
   end
 
-  def parse_macro_source(generated_source, macro_expansion_pragmas, the_macro, node, vars, current_def = nil, inside_type = false, inside_exp = false, mode : Parser::ParseMode = :normal, visibility : Visibility = :public)
-    parse_macro_source generated_source, macro_expansion_pragmas, the_macro, node, vars, current_def, inside_type, inside_exp, visibility, &.parse(mode)
+  def parse_macro_source(generated_source, macro_expansion_pragmas, the_macro, node, vars, current_def = nil, inside_type = false, inside_exp = false, mode : Parser::ParseMode = :normal, visibility : Visibility = :public, line_locations = nil)
+    parse_macro_source generated_source, macro_expansion_pragmas, the_macro, node, vars, current_def, inside_type, inside_exp, visibility, line_locations, &.parse(mode)
   end
 
-  def parse_macro_source(generated_source, macro_expansion_pragmas, the_macro, node, vars, current_def = nil, inside_type = false, inside_exp = false, visibility : Visibility = :public, &)
+  def parse_macro_source(generated_source, macro_expansion_pragmas, the_macro, node, vars, current_def = nil, inside_type = false, inside_exp = false, visibility : Visibility = :public, line_locations = nil, &)
     parser = @program.new_parser(generated_source, var_scopes: [vars.dup])
-    parser.filename = VirtualFile.new(the_macro, generated_source, node.location)
+    parser.filename = VirtualFile.new(the_macro, generated_source, node.location, line_locations)
     parser.macro_expansion_pragmas = macro_expansion_pragmas
     parser.visibility = visibility
     parser.def_nest = 1 if current_def && !current_def.is_a?(External)

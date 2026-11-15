@@ -423,6 +423,27 @@ describe "Code gen: debug" do
     debug_line_of(str, foo, /call void @exit/).should eq(21)
   end
 
+  it "attributes code in a top-level macro if to its own lines" do
+    mod = codegen(<<-CRYSTAL, debug: Crystal::Debug::All, single_module: true, inject_primitives: false)
+      lib LibC
+        fun exit(status : Int32) : NoReturn
+      end
+
+      {% if true %}
+        def foo(value : Int32)
+          LibC.exit(value)
+        end
+      {% end %}
+
+      foo(1)
+      CRYSTAL
+
+    str = mod.to_s
+    # `foo`, found by its parameters because symbol names are mangled on Windows
+    foo = str[/^define [^\n]+\(i32 %value\).+?^}/m]
+    debug_line_of(str, foo, /call void @exit/).should eq(7)
+  end
+
   it "attributes the type checks of a dispatch to the call" do
     mod = codegen(<<-CRYSTAL, debug: Crystal::Debug::All, single_module: true)
       class Foo

@@ -41,12 +41,15 @@ class Crystal::Location
 
   # Returns the Location whose filename is a String, not a VirtualFile,
   # traversing virtual file expanded locations.
+  #
+  # A line of a virtual file that comes from the macro's literal text maps to that
+  # text's location, other lines map to where the macro was expanded.
   def expanded_location
     case filename = @filename
     when String
       self
     when VirtualFile
-      filename.expanded_location.try &.expanded_location
+      (filename.line_location(@line_number, @column_number) || filename.expanded_location).try &.expanded_location
     else
       nil
     end

@@ -200,7 +200,7 @@ end
 
 def assert_macro(macro_body, expected, *, expected_pragmas = nil, flags = nil, file = __FILE__, line = __LINE__, &)
   program, a_macro, call = prepare_macro_call(macro_body, flags) { |program| yield program }
-  result, result_pragmas = program.expand_macro(a_macro, call, program, program)
+  result, result_pragmas, _ = program.expand_macro(a_macro, call, program, program)
   result = result.chomp(';')
   result.should eq(expected), file: file, line: line
   result_pragmas.should eq(expected_pragmas), file: file, line: line if expected_pragmas

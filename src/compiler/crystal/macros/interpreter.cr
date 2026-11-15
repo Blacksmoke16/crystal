@@ -4,6 +4,13 @@ module Crystal
     property free_vars : Hash(String, TypeVar)?
     property macro_expansion_pragmas : Hash(Int32, Array(Lexer::LocPragma))? = nil
 
+    # If set, the location in the source code of each line of output that starts in a `MacroLiteral`, by line number.
+    property line_locations : Hash(Int32, Location)? = nil
+
+    # The line number of the output at `@counted_pos`
+    @counted_line_number = 1
+    @counted_pos = 0
+
     def self.new(program, scope : Type, path_lookup : Type, a_macro : Macro, call, a_def : Def? = nil, in_macro = false)
       vars = {} of String => ASTNode
       splat_index = a_macro.splat_index
@@ -138,8 +145,33 @@ module Crystal
     end
 
     def visit(node : MacroLiteral)
+      if line_locations = @line_locations
+        record_line_locations(line_locations, node)
+      end
       @str << node.value
       false
+    end
+
+    # Records the location of each line of output that starts after a newline of *node*.
+    private def record_line_locations(line_locations, node)
+      return unless end_location = node.end_location
+      newlines = node.value.count('\n')
+      return if newlines == 0
+
+      # The first line is derived from the end, because the start location of a literal
+      # that begins with a comment is on the next line
+      line_number = end_location.line_number - newlines
+      output_line_number = self.output_line_number
+      1.upto(newlines) do |i|
+        line_locations[output_line_number + i] = Location.new(end_location.filename, line_number + i, 1)
+      end
+    end
+
+    # Returns the line number of the end of the output so far.
+    private def output_line_number
+      @counted_line_number += @str.to_slice[@counted_pos..].count('\n'.ord.to_u8)
+      @counted_pos = @str.pos.to_i32
+      @counted_line_number
     end
 
     def visit(node : MacroVerbatim)

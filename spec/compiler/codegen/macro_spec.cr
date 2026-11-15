@@ -1780,6 +1780,90 @@ describe "Code gen: macro" do
       CRYSTAL
   end
 
+  it "keeps line number of code in a top-level macro if, after a comment and a blank line" do
+    run(<<-CRYSTAL, filename: "somedir/bar.cr", inject_primitives: false).to_i.should eq(4)
+      {% if true %}
+        # comment
+
+        __LINE__
+      {% end %}
+      CRYSTAL
+  end
+
+  it "keeps line number of code in a macro if inside a def" do
+    run(<<-CRYSTAL, filename: "somedir/bar.cr", inject_primitives: false).to_i.should eq(4)
+      def foo
+        {% if true %}
+          1
+          __LINE__
+        {% end %}
+      end
+
+      foo
+      CRYSTAL
+  end
+
+  it "keeps line number of code in each iteration of a macro for" do
+    run(<<-CRYSTAL, filename: "somedir/bar.cr", inject_primitives: false).to_i.should eq(3)
+      {% for i in [1, 2] %}
+        {{i}}
+        __LINE__
+      {% end %}
+      CRYSTAL
+  end
+
+  it "keeps line number of code after a multi-line interpolation" do
+    run(<<-CRYSTAL, filename: "somedir/bar.cr", inject_primitives: false).to_i.should eq(3)
+      {% begin %}
+        {{ "1\\n2".id }}
+        __LINE__
+      {% end %}
+      CRYSTAL
+  end
+
+  it "uses the macro's line for code in a multi-line interpolation" do
+    run(<<-CRYSTAL, filename: "somedir/bar.cr", inject_primitives: false).to_i.should eq(1)
+      {% begin %}
+        {{ "1\\n__LINE__".id }}
+      {% end %}
+      CRYSTAL
+  end
+
+  it "keeps line number of code in a macro if with CRLF line endings" do
+    run("{% if true %}\r\n  1\r\n  __LINE__\r\n{% end %}\r\n", filename: "somedir/bar.cr", inject_primitives: false).to_i.should eq(3)
+  end
+
+  it "keeps line number of code in a macro finished hook" do
+    run(<<-CRYSTAL, filename: "somedir/bar.cr", inject_primitives: false).to_i.should eq(3)
+      macro finished
+        def foo
+          __LINE__
+        end
+      end
+
+      foo
+      CRYSTAL
+  end
+
+  it "uses the line of the macro call for a macro if expanded by an inherited hook" do
+    run(<<-CRYSTAL, filename: "somedir/bar.cr", inject_primitives: false).to_i.should eq(11)
+      class Foo
+        macro inherited
+          def self.line
+            \\{% if true %}
+              __LINE__
+            \\{% end %}
+          end
+        end
+      end
+
+      class Bar < Foo
+      end
+
+      Bar.line
+      CRYSTAL
+  end
+
   it "resolves alias in macro" do
     run(<<-CRYSTAL).to_i.should eq(2)
       alias Foo = Int32 | String
